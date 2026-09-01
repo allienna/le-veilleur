@@ -15,9 +15,18 @@ permissions:
   pages: write
   id-token: write
 
+# The Minion publishes through the Contents API, which is one commit per file: the image, the
+# article, the LinkedIn draft, then one per fiche — around nine pushes in a couple of minutes.
+# Superseding the queued runs means one deploy instead of nine, and the last one carries the
+# final tree. Cancelling before `deploy-pages` runs leaves the previous deployment live, so
+# there is no window where the site is half-published.
+#
+# The alternative is one atomic commit via the Git Data API (blobs -> tree -> commit -> ref),
+# about forty lines in publish/github.py. Not worth it while this one line does the job: the
+# commit order already guarantees the article never goes live before its image.
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:
