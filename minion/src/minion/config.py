@@ -199,4 +199,8 @@ FICHE_BACKOFF_BASE: timedelta = timedelta(seconds=2)
 # IO-bound `claude` subprocess calls, run concurrently so N cited sources don't cost N times the
 # per-call wall-clock time end to end.
 FICHE_MAX_CONCURRENCY: int = 3
-MAX_FICHE_WORDS: int = 1500
+# Calibrated against the 411 fiches already on the site (median 744 words, p90 1413,
+# max 5198): `## Analyse approfondie` is an *integral* French translation of the source,
+# not a summary, so long sources legitimately run long. 1500 would have rejected 8% of
+# the existing corpus. This is a runaway-output guard, not an editorial limit.
+MAX_FICHE_WORDS: int = 6000

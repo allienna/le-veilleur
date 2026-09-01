@@ -27,13 +27,22 @@ from minion.generate.models import ContextSource
 _PROMPT_TEMPLATE = (
     "Tu es un analyste tech. Lis le fichier JSON à ce chemin : {path} "
     '(champs : "title", "url", "markdown" — le contenu de la source). '
-    "Rédige une fiche d'analyse de cette seule source, en français, avec EXACTEMENT ces "
+    "Rédige une fiche de lecture de cette seule source, en français, avec EXACTEMENT ces "
     "sections markdown dans cet ordre :\n"
     "## Résumé\n## Points clés\n## Analyse approfondie\n## Pourquoi ça compte\n\n"
-    "« Points clés » est une liste à puces. Les autres sections sont des paragraphes de prose.\n\n"
+    "- « Résumé » : 3-4 phrases synthétiques capturant la thèse et les faits principaux.\n"
+    "- « Points clés » : une liste à puces de 3 à 6 points.\n"
+    "- « Analyse approfondie » : la traduction française INTÉGRALE du contenu source. "
+    "Tu traduis, tu ne résumes pas — la fiche est un document de référence. Préserve la "
+    "structure de l'original (sections, listes, citations), adapte naturellement les "
+    "expressions idiomatiques, et conserve en anglais les termes techniques qui n'ont pas "
+    "d'équivalent courant en français.\n"
+    "- « Pourquoi ça compte » : 1-2 phrases sur la pertinence pour une veille tech.\n\n"
     "Réponds avec UN SEUL objet JSON, sans texte autour, avec exactement ces clés :\n"
-    '{{"theme": "<un thème court, ex. IA, Sécurité, Data, Leadership, Tech>", '
-    '"keywords": ["<3 à 6 mots-clés>"], '
+    '{{"theme": "<un seul thème parmi : IA, Leadership, Tech, Sécurité, Data, '
+    'Géopolitique, Autre>", '
+    '"keywords": ["<3 à 6 mots-clés, en français>"], '
+    '"authors": ["<le ou les auteurs si identifiables, sinon une liste vide>"], '
     '"tone": "<opinion|tutorial|research|news, ou null si indéterminable>", '
     '"body": "<le markdown des 4 sections ci-dessus>"}}'
 )
