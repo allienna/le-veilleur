@@ -85,6 +85,10 @@ When several themes compete for the day's narrative, value them in this order:
 - **Attribution**: whenever you reference a source by its title or its site/domain, that source's
   **URL must also appear in the body** (the inline `[[N](URL)]` reference plus the Sources list
   both satisfy this). If you name it, link it.
+- **Inline reference form is exactly `[[N](URL)]`** — two opening brackets, the number, the link,
+  and a **closing bracket**. Dropping the closing bracket renders as `[N.` and is rejected by
+  validation. `N` is the source's position in your `## Sources` list, and the URL must be
+  byte-identical to the one listed there.
 - Use **at least 5** of the provided sources, each contributing a distinct idea, figure or fact.
 - Keep source **titles in their original language** — never translate them.
 

@@ -22,6 +22,11 @@ from minion.generate.models import (
 
 # Direct-quote spans: French guillemets, straight quotes, and curly quotes.
 _QUOTE_RE = re.compile(r"«\s*(.+?)\s*»|\"(.+?)\"|“(.+?)”", re.DOTALL)
+# An inline source reference missing its closing bracket: `[[3](url)` instead of `[[3](url)]`.
+# Observed in production on 2026-09-01, on all nine of that article's references at once: the
+# markdown then renders as `[3.` with no closing bracket, and the site's source tooltip — which
+# keys on the anchor — still works, so nothing downstream notices. Cheap to catch here.
+_UNCLOSED_REF_RE = re.compile(r"\[\[\d+\]\([^)]*\)(?!\])")
 _WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
 
 
@@ -86,6 +91,18 @@ def validate_structure(article: GeneratedArticle) -> list[ValidationError]:
                 message=(
                     f"image prompt {len(article.image_prompt)} > "
                     f"{config.MAX_IMAGE_PROMPT_CHARS} chars"
+                ),
+            )
+        )
+
+    unclosed = len(_UNCLOSED_REF_RE.findall(article.body))
+    if unclosed:
+        errors.append(
+            ValidationError(
+                code="malformed_reference",
+                message=(
+                    f"{unclosed} inline reference(s) missing the closing bracket — "
+                    "the form is `[[N](URL)]`"
                 ),
             )
         )

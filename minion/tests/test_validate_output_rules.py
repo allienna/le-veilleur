@@ -58,3 +58,15 @@ def test_image_prompt_over_limit_flagged() -> None:
 
 def test_article_over_word_limit_flagged() -> None:
     assert "article_too_long" in _codes(_article(body="word " * 10_001))
+
+
+def test_unclosed_inline_reference_flagged() -> None:
+    """Regression: on 2026-09-01 the model emitted `[[N](url)` for all nine references. The
+    article rendered as `[1.` with no closing bracket and nothing downstream noticed."""
+    body = "Un fait [[1](https://a.example/x). Un autre [[2](https://b.example/y)."
+    assert "malformed_reference" in _codes(_article(body=body))
+
+
+def test_well_formed_inline_references_are_not_flagged() -> None:
+    body = "Un fait [[1](https://a.example/x)]. Un autre [[2](https://b.example/y)]."
+    assert "malformed_reference" not in _codes(_article(body=body))
