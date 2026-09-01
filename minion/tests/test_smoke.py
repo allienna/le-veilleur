@@ -1,4 +1,4 @@
-"""Scaffold smoke test: the minion package imports cleanly. Real node tests land in F-003+."""
+"""Smoke test: the minion package imports cleanly, with no credentials present."""
 
 import importlib
 

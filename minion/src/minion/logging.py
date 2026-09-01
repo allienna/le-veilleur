@@ -1,7 +1,7 @@
-"""Structured JSON logging — the single sanctioned stdout boundary (constitution §4).
+"""Structured JSON logging — the single sanctioned stdout boundary.
 
 Every run emits newline-delimited JSON to stdout, each record carrying `runId` (and
-`step`, where applicable) so Cloud Logging can correlate a run end to end (PRD §6). Nothing
+`step`, where applicable) so Cloud Logging can correlate a run end to end. Nothing
 else in the package writes to stdout; there is no `print` here, so ruff `T20` needs no
 exemption for this module.
 """
@@ -36,7 +36,7 @@ class _StdoutJsonHandler(logging.Handler):
             # Flush every record: stdout is block-buffered when it isn't a TTY (Cloud Run pipes
             # it), so without this an uncatchable SIGKILL — e.g. the Cloud Run task timeout —
             # discards the buffered records and the run leaves no trace. A one-shot job emits few
-            # lines, so per-record flush costs nothing (F-013 burn-in observability).
+            # lines, so per-record flush costs nothing.
             sys.stdout.flush()
         except Exception:  # pragma: no cover - defensive, mirrors logging.StreamHandler
             self.handleError(record)

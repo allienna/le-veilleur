@@ -1,4 +1,4 @@
-"""End-to-end ingestion through `run_pipeline` with fake clients (T-3.5).
+"""End-to-end ingestion through `run_pipeline` with fake clients.
 
 Covers the six spec scenarios: happy path, threshold-pass, threshold-fail, empty-mailbox
 skip, paywall exclusion, and denylist filtering — driven through the real GmailStep / ScrapeStep
@@ -31,7 +31,7 @@ DATE = "2026-06-01"
 T0 = datetime(2026, 6, 1, 6, 0, tzinfo=PARIS_TZ)
 
 # A valid `/generate` artefact so runs that pass validate_input flow through the real
-# generation steps (F-005). Generation specifics are covered by test_generation_pipeline.py.
+# generation steps. Generation specifics are covered by test_generation_pipeline.py.
 _VALID_ARTIFACT = json.dumps(
     {
         "theme": "ai",

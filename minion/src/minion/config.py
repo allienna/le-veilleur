@@ -1,8 +1,8 @@
 """Static configuration constants for the Minion orchestrator.
 
-Module-level constants only — no side effects, no I/O. The 20-minute run timeout is the
-constitution §2.6 hard cap; F-003 does not enforce it in-process (that is the Cloud Run
-Job `timeout` in F-007), but the stale-lock reclaim (AD-2) reuses it as a TTL.
+Module-level constants only — no side effects, no I/O. The 20-minute run timeout is not
+enforced in-process; the Cloud Run Job `timeout` is the real ceiling (infra/job.tf) and this
+constant reuses it as the stale-lock TTL.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from minion.models import StepName
 
-# Wall-clock ceiling for a single run (constitution §2.6). Reused as the lock-staleness TTL.
+# Wall-clock ceiling for a single run. Reused as the lock-staleness TTL.
 RUN_TIMEOUT: timedelta = timedelta(minutes=20)
 
 # All run timestamps and the daily date key are computed in this zone (PRD: Europe/Paris).
@@ -20,32 +20,31 @@ PARIS_TZ: ZoneInfo = ZoneInfo("Europe/Paris")
 
 
 # The ten canonical pipeline steps, in execution order (the StepName enum is declaration
-# ordered to match the pipeline; constitution §2.9 observability is per this set).
+# ordered to match the pipeline).
 STEP_ORDER: tuple[StepName, ...] = tuple(StepName)
 
-# --- Ingestion (F-004) -------------------------------------------------------------------
+# --- Ingestion ---------------------------------------------------------------------------
 
 # Secret holding the operator's Gmail OAuth refresh-token JSON (authorized_user.json shape).
 GMAIL_REFRESH_TOKEN_SECRET: str = "gmail-oauth-refresh-token"
 
-# Read-only Gmail access — the pipeline never marks messages read (F-004 AD-2, keeps replay
-# idempotent and avoids the broader gmail.modify scope).
+# Read-only Gmail access — the pipeline never marks messages read, which keeps replay
+# idempotent and avoids the broader gmail.modify scope.
 GMAIL_SCOPES: tuple[str, ...] = ("https://www.googleapis.com/auth/gmail.readonly",)
 
-# Sender denylist (PRD §7). Empty for MVP, maintained manually. An entry matches a newsletter
+# Sender denylist. Empty, maintained manually. An entry matches a newsletter
 # when it equals the full From address (case-insensitive) or is an "@domain" suffix of it.
 EXCLUDED_SENDERS: frozenset[str] = frozenset()
 
-# Per-run hard caps (PRD §3 Scalability). Truncation is logged, never silent.
+# Per-run hard caps. Truncation is logged, never silent.
 MAX_NEWSLETTERS: int = 50
 MAX_URLS: int = 100
 
-# Substrings in the fetched raw HTML that signal paywalled content (FR-A3). Recalibrated for
-# F-015 local extraction: the markers are matched against the origin server's raw HTML (before
-# trafilatura, which may strip the paywall notice), not Jina's cleaned output. Starter set —
-# the strongest signal is the schema.org JSON-LD `isAccessibleForFree:false` many publishers
-# embed; the rest are common visible paywall CTAs. Conservative by design (a false positive
-# wrongly drops a good source); refine against captured HTML during F-013 burn-in (AC-3).
+# Substrings signalling paywalled content, matched against the origin server's raw HTML —
+# before trafilatura runs, since extraction may strip the paywall notice itself. The strongest
+# signal is the schema.org JSON-LD `isAccessibleForFree:false` many publishers embed; the rest
+# are common visible paywall CTAs. A starter set, conservative by design: a false positive
+# wrongly drops a good source. Refine it against captured HTML as failures show up.
 PAYWALL_MARKERS: tuple[str, ...] = (
     '"isAccessibleForFree":false',
     '"isAccessibleForFree": false',
@@ -55,10 +54,10 @@ PAYWALL_MARKERS: tuple[str, ...] = (
     "Already a subscriber",
 )
 
-# --- Scrape / local extraction (F-015) ---------------------------------------------------
+# --- Scrape / local extraction -----------------------------------------------------------
 # Each candidate URL is fetched directly from its origin (httpx, browser-like UA + redirects),
 # then main content is extracted in-process by trafilatura. No external scraping service / key /
-# rate limit (replaces Jina Reader — PRD §5 amendment).
+# rate limit.
 
 # Browser-like UA — many publishers 403 a bare/library client.
 SCRAPE_USER_AGENT: str = (
@@ -75,22 +74,22 @@ SCRAPE_WORKERS: int = 6
 # link.mail.beehiiv.com — got 6 workers hitting that host at once, tripping its own rate limiter
 # (429/403) even though SCRAPE_WORKERS caps *global* concurrency, not per-host.
 SCRAPE_HOST_MIN_INTERVAL: timedelta = timedelta(seconds=2)
-# Overall scrape budget (PRD §4: ≤3 min target, 5 min ceiling).
+# Overall scrape budget — roughly 3 min in practice, and it must not eat the run's 20.
 SCRAPE_DEADLINE: timedelta = timedelta(minutes=4)
 
-# Input-validation threshold (PRD §6): continue only if ≥50% of candidates scraped OK AND
+# Input-validation threshold: continue only if ≥50% of candidates scraped OK AND
 # ≥5 sources OK; otherwise the run hard-fails.
 MIN_SOURCES_OK: int = 5
 MIN_SOURCES_FRACTION: float = 0.5
 
-# --- Generation / `/generate` (F-005) ----------------------------------------------------
+# --- Generation / `/generate` ------------------------------------------------------------
 
 # Secret holding the Claude Code OAuth token (`claude setup-token`). The generate subprocess
-# authenticates via this; ANTHROPIC_API_KEY is stripped from its env (constitution §2.2).
+# authenticates via this; ANTHROPIC_API_KEY is stripped from its env.
 ANTHROPIC_OAUTH_TOKEN_SECRET: str = "anthropic-oauth-token"
 
-# The agentic invocation (promoted from spike/claude_probe). `/generate` ships in the pinned
-# allienna/claude-feature-flow plugin installed in the Minion image (constitution §3, F-007).
+# The agentic invocation. `/generate` is vendored at .claude/commands/generate.md and copied
+# into the image, so the runtime executes a spec that ships with it.
 CLAUDE_CMD: tuple[str, ...] = (
     "claude",
     "-p",
@@ -98,18 +97,18 @@ CLAUDE_CMD: tuple[str, ...] = (
     "--permission-mode",
     "bypassPermissions",
     # JSON envelope on stdout so the runner can read `total_cost_usd` + `usage` alongside the
-    # artefact `result` for the supervision cost/tokens display (F-011 AD-5).
+    # artefact `result`, which is what the run logs report as cost/tokens.
     "--output-format",
     "json",
 )
-CLAUDE_TIMEOUT: timedelta = timedelta(minutes=8)  # PRD §4: ≤4 min target, 8 min ceiling
+CLAUDE_TIMEOUT: timedelta = timedelta(minutes=8)  # ~4 min typical, 8 is the ceiling
 CLAUDE_BACKOFF_BASE: timedelta = timedelta(seconds=2)  # transport-retry backoff unit
-# Retry budget is bounded by constitution §6 (20-min hard run timeout): a real `/generate` on a
+# Retry budget is bounded by the 20-minute hard run timeout: a real `/generate` on a
 # dense multi-source day takes ~6-7 min, so the generate loop must fit <=2 invocations to clear
-# end-to-end (scrape + Imagen + GitHub) inside 20 min. Lowered from 2 each during F-013 burn-in.
+# end-to-end (scrape + Imagen + GitHub) inside 20 min. Lowered from 2 after real runs.
 CLAUDE_TRANSPORT_RETRIES: int = 1  # retries on a Claude transport error, distinct from validation
 
-# Per-run caps (PRD §3 Scalability). Token budgets use a char heuristic (AD-10/AD-12), not a
+# Per-run caps. Token budgets use a char heuristic, not a
 # real tokenizer — a guard, not an exact bound.
 MAX_GENERATE_INPUT_TOKENS: int = 500_000
 MAX_GENERATE_OUTPUT_TOKENS: int = 30_000
@@ -129,11 +128,11 @@ THEME_ALLOWLIST: frozenset[str] = frozenset(THEME_PRIORITY)
 DEFAULT_THEME: str = "Tech"  # unknown theme normalizes here — not an error
 MAX_THEMES: int = 3  # ArticleCard renders at most three pills
 
-# Copyright post-validator (constitution §4 / FR-A3).
-# Thresholds recalibrated during F-013 burn-in against real 47-source days: the originals fired
-# on non-infringing content — product names ("Large Industry Model") counted as quotes, and a
-# single 12-token run of generic French prose counted as "wholesale". The intent of §4 is to
-# bar *substantial* verbatim quoting and passage-level copying, not proper nouns or stock phrasing.
+# Copyright post-validator. These thresholds were recalibrated against real 47-source days:
+# the original, stricter values fired on non-infringing content — a product name ("Large
+# Industry Model") counted as a quote, and a single 12-token run of generic French prose counted
+# as "wholesale". The rules exist to bar *substantial* verbatim quoting and passage-level
+# copying, not proper nouns or stock phrasing.
 MAX_QUOTE_WORDS: int = 30  # max words in a single direct quote per source
 MAX_QUOTES_PER_SOURCE: int = 1  # max distinct substantial quotes attributable to one source
 # A quoted span counts toward MAX_QUOTES_PER_SOURCE only at/above this length — short spans are
@@ -141,22 +140,22 @@ MAX_QUOTES_PER_SOURCE: int = 1  # max distinct substantial quotes attributable t
 MIN_COUNTED_QUOTE_WORDS: int = 6
 WHOLESALE_NGRAM: int = 20  # ≥ this many consecutive shared tokens ⇒ wholesale reproduction
 
-# Agentic validation-retry budget (PRD §6): re-invoke `/generate` with errors fed back. Lowered
-# 2 -> 1 in F-013 burn-in so the generate loop (<=2 invocations, ~6-7 min each) plus scrape +
-# Imagen + GitHub fits the constitution §6 20-min hard run timeout; the job timeout is the backstop.
+# Agentic validation-retry budget: re-invoke `/generate` with the errors fed back. Lowered
+# 2 -> 1 so the generate loop (<=2 invocations, ~6-7 min each) plus scrape + Imagen + GitHub fits
+# the 20-minute run timeout; the job timeout is the backstop.
 MAX_GENERATE_RETRIES: int = 1
 
-# --- Publish: Imagen + GitHub + Firestore (F-006) ----------------------------------------
+# --- Publish: Imagen + GitHub ------------------------------------------------------------
 
 # Imagen via the Gemini API (an API key, not GCP IAM) — so the pipeline also runs locally
 # without GCP credentials. Imagen returns PNG bytes, which the site consumes as-is.
 GEMINI_API_KEY_SECRET: str = "gemini-api-key"
 IMAGEN_MODEL: str = "imagen-4.0-fast-generate-001"
 IMAGEN_ASPECT_RATIO: str = "16:9"  # every hero image is 16:9
-# One agentic prompt-rewrite retry on a moderation rejection before the placeholder (PRD §6 R2).
+# One agentic prompt-rewrite retry on a moderation rejection before giving up on the image.
 IMAGEN_RETRIES: int = 1
-# The Le Veilleur brand template appended to the article's image_prompt (promoted from
-# spike.imagen.SPIKE_IMAGEN_PROMPT). Keeps the mascot on-brand and moderation-safe (DESIGN §0).
+# The Le Veilleur brand template appended to the article's image_prompt. Keeps the mascot
+# on-brand and moderation-safe even if the model's own prompt drifts.
 IMAGEN_BRAND_TEMPLATE: str = (
     "Featuring the mascot 'Le Veilleur' — a cartoon owl with navy plumage, large amber eyes, "
     "friendly Pixar 3D style, soft studio lighting. 16:9 aspect ratio."
@@ -176,10 +175,11 @@ FICHE_MD_PATH_TEMPLATE: str = "site/src/content/fiches/{date}-{slug}.md"
 # readable from a phone without being published.
 LINKEDIN_PATH_TEMPLATE: str = "linkedin/{date}.md"
 GITHUB_TIMEOUT: timedelta = timedelta(seconds=30)  # per-request HTTP timeout
-GITHUB_RETRIES: int = 3  # retries after the first attempt on a commit failure (PRD §6)
+GITHUB_RETRIES: int = 3  # retries after the first attempt on a commit failure
 GITHUB_BACKOFF_BASE: timedelta = timedelta(seconds=1)  # exponential backoff unit
 
-# Slug derivation from the article title (plan AD-6). Length-capped, URL-safe.
+# Slug derivation from a source title (fiches only — articles are keyed by date).
+# Length-capped, URL-safe.
 SLUG_MAX_LEN: int = 80
 
 # Run-level warning latched when Imagen could not be satisfied. No placeholder asset is
@@ -187,10 +187,9 @@ SLUG_MAX_LEN: int = 80
 # public/images/placeholder-veilleur.svg on their own.
 IMAGEN_FALLBACK_WARNING: str = "imagen_unavailable"
 
-# --- Fiches: per-source analysis (F-016) --------------------------------------------------
-# Non-blocking by design: a failed fiche is skipped, never a run failure (plan AD — "fiches are
-# never on the article's critical path"). Placed last in STEP_ORDER, after `publish`, so it can
-# never prevent the article itself from shipping.
+# --- Fiches: per-source analysis ---------------------------------------------------------
+# Non-blocking by design: a failed fiche is skipped, never a run failure. Placed last in
+# STEP_ORDER, after the commit, so it can never prevent the article itself from shipping.
 
 # Shorter than CLAUDE_TIMEOUT: one source's markdown, not the whole assembled context.
 FICHE_TIMEOUT: timedelta = timedelta(minutes=4)

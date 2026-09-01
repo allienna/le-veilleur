@@ -1,4 +1,4 @@
-"""Tests for the structural output validators (T-1.4, FR-4)."""
+"""Tests for the structural output validators."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Hermetic test double for the generation port (F-005 AD-2/AD-11).
+"""Hermetic test double for the generation port.
 
 `FakeGenerateRunner` returns scripted raw outputs (one per attempt) or raises a transport error,
 and records the `feedback` passed on each invocation so tests can assert the retry loop forwards

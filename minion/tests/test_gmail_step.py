@@ -1,4 +1,4 @@
-"""Tests for GmailStep over FakeGmailClient (T-3.1)."""
+"""Tests for GmailStep over FakeGmailClient."""
 
 from __future__ import annotations
 

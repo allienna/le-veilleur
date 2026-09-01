@@ -1,11 +1,11 @@
 # pyright: basic
 # ^ google-api-python-client builds its Resource chain dynamically and ships incomplete
-#   stubs (see pyproject reportMissingTypeStubs); this SDK-boundary client is dropped to basic
-#   checking, matching store/firestore.py and secrets.py. Behaviour is covered by the
-#   gmail-step tests via FakeGmailClient and this module's own tests via a fake Resource.
-"""Production Gmail client (F-004 FR-1) — fetch unread newsletters over a date window.
+# stubs (see pyproject reportMissingTypeStubs); this SDK-boundary client is dropped to basic
+# checking, matching secrets.py. Behaviour is covered by the
+# gmail-step tests via FakeGmailClient and this module's own tests via a fake Resource.
+"""Production Gmail client — fetch unread newsletters over a date window.
 
-Promotes the F-001 spike's proven OAuth chain (`gmail-oauth-refresh-token` secret,
+Uses a refresh-token OAuth chain (the `gmail-oauth-refresh-token` secret,
 `gmail.readonly` scope) from a count-only probe to a real body-fetching ingestion client.
 The 24h window is anchored to the run `date` in Europe/Paris for replayable idempotency
 (AD-4): the calendar day `[date 00:00, date+1d 00:00)`, expressed as Unix-epoch

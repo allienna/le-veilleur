@@ -1,4 +1,4 @@
-"""Tests for the real Gmail client over a fake googleapiclient Resource (T-2.1)."""
+"""Tests for the real Gmail client over a fake googleapiclient Resource."""
 
 from __future__ import annotations
 

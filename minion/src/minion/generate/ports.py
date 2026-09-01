@@ -1,4 +1,4 @@
-"""Generation port — the only `claude -p "/generate"` surface the step knows about (AD-2).
+"""Generation port — the only `claude -p "/generate"` surface the step knows about.
 
 Mirrors `ingest/ports.py`: the `generate` step depends on this Protocol, `runner.py` implements
 it over a subprocess, and `fakes.py` provides a hermetic double so the pipeline tests without the
@@ -13,7 +13,7 @@ from minion.generate.models import AssembledContext, GenerateInvocation
 
 
 class GenerateTransportError(RuntimeError):
-    """A failure *invoking* `/generate` — binary missing, timeout, non-zero exit (FR-2).
+    """A failure *invoking* `/generate` — binary missing, timeout, non-zero exit.
 
     Distinct from a validation failure (which feeds the retry loop): transport errors get their
     own exponential-backoff retry and then hard-fail the run.

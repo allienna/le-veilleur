@@ -1,16 +1,16 @@
 # pyright: basic
-# ^ wraps the GitHub Contents API (untyped JSON over httpx); like store/firestore.py and
-#   generate/runner.py this external-boundary adapter is dropped to basic checking. Behaviour is
-#   covered by FakeContentRepository + the gated integration test (no GitHub/network in CI).
-"""Production `ContentRepository` over the GitHub Contents API (F-006, promotes spike/github.py).
+# ^ wraps the GitHub Contents API (untyped JSON over httpx); like generate/runner.py this
+# external-boundary adapter is dropped to basic checking. Behaviour is covered by
+# FakeContentRepository + the gated integration test (no GitHub/network in CI).
+"""Production `ContentRepository` over the GitHub Contents API.
 
 One PUT (create-or-update) plus a GET to fetch the existing blob SHA — idempotent by path, so a
-replay overwrites prior content (constitution §2.7). Uses `httpx` directly (the surface is tiny
-and `httpx` is already used for scraping). Retry/backoff lives in `GithubStep` (plan AD-2); this
-adapter raises `ContentRepoError` on any non-2xx or transport failure.
+replay overwrites prior content. Uses `httpx` directly (the surface is tiny and `httpx` is already
+used for scraping). Retry/backoff lives in `GithubStep`; this adapter raises `ContentRepoError` on
+any non-2xx or transport failure.
 
-Target repo is configured in `config` — currently the migration-phase `allienna/veilleur-app`
-(plan AD-5 / Open Q#2), a one-constant switch to `allienna/veilleur` later.
+The target repo is this one, configured in `config` — the Minion runs in Cloud Run with no
+checkout, so it publishes through the API rather than with git.
 """
 
 from __future__ import annotations

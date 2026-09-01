@@ -2,7 +2,7 @@
 
 The orchestrator never reads the wall clock or mints ids directly — it takes a `Clock`
 and calls `new_run_id()`. `SystemClock` is the production implementation; `FrozenClock`
-makes idempotency, ordering, and stale-lock tests deterministic (AD-6).
+makes idempotency, ordering, and stale-lock tests deterministic.
 """
 
 from __future__ import annotations

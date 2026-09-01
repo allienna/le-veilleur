@@ -1,4 +1,4 @@
-"""Step 10 (final): per-source analysis, one fiche per cited source (F-016).
+"""Step 9 (final): per-source analysis, one fiche per cited source.
 
 Data bag contract:
 - reads `article: GeneratedArticle` + `context: AssembledContext`
@@ -36,7 +36,7 @@ from minion.publish.ports import ContentRepoError, ContentRepository
 from minion.publish.serialize import render_fiche, slugify
 from minion.steps.base import StepContext, StepResult
 
-# Run-level warning latched when at least one cited source fails to fiche (plan AD-4).
+# Run-level warning latched when at least one cited source fails to fiche.
 FICHE_PARTIAL_FAILURE_WARNING = "fiche_partial_failure"
 
 

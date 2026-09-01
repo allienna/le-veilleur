@@ -1,15 +1,14 @@
 # pyright: basic
 # ^ google-cloud-secret-manager ships incomplete type stubs (see pyproject reportMissingTypeStubs);
-#   this SDK-boundary helper is dropped to basic checking, matching store/firestore.py.
-"""Secret Manager helper — the production accessor for GCP secrets (F-004 AD-2).
+# this SDK-boundary helper is dropped to basic checking.
+"""Secret Manager helper — the accessor for the four runtime secrets.
 
-Promoted out of the throwaway `spike/` package: the Hello-Veilleur spike proved the Secret
-Manager chain, and F-004 needs it as strict-typed, type-checked production code (the spike
-copy stays put but is pyright-excluded and slated for deletion).
+Locally, a plain environment variable of the same (upper-snake) name is used instead, so the
+pipeline runs on a laptop with no GCP credentials.
 
-Constitution §2 principle 2: `ANTHROPIC_API_KEY` MUST NOT be in env by default. Importing
-this module refuses if the variable is set, blocking accidental activation of the API-key
-fallback path.
+`ANTHROPIC_API_KEY` must not be in the environment: importing this module refuses if it is set,
+which blocks accidental activation of the API-key path. The agentic steps authenticate with
+`CLAUDE_CODE_OAUTH_TOKEN` only. See infra/RUNBOOK.md §3c for the deliberate break-glass.
 """
 
 from __future__ import annotations
@@ -29,9 +28,9 @@ class MissingSecretError(LookupError):
 def _assert_anthropic_api_key_absent() -> None:
     if os.environ.get("ANTHROPIC_API_KEY") is not None:
         msg = (
-            "ANTHROPIC_API_KEY is set in env. Constitution §2 principle 2 forbids the "
-            "API-key fallback path by default — unset it before running the Minion, or "
-            "activate the fallback explicitly via a documented deviation PR."
+            "ANTHROPIC_API_KEY is set in env. The API-key path is disabled by default — "
+            "unset it before running the Minion, or activate it explicitly as the documented "
+            "break-glass (infra/RUNBOOK.md §3c)."
         )
         raise RuntimeError(msg)
 
@@ -49,12 +48,24 @@ def _client() -> secretmanager.SecretManagerServiceClient:
     return _CLIENT
 
 
+def env_var_for(name: str) -> str:
+    """The environment-variable name that overrides secret `name` (`github-pat` -> `GITHUB_PAT`)."""
+    return name.replace("-", "_").upper()
+
+
 def get(name: str) -> str:
-    """Return the latest version's payload of secret `name` in the veilleur-app project.
+    """Return secret `name`, from the environment if set, otherwise from Secret Manager.
+
+    The environment override is what lets the whole pipeline run on a laptop with no GCP
+    credentials at all — the reason image generation goes through a Gemini API key rather than
+    Vertex IAM. In Cloud Run nothing sets these, so the Secret Manager path is taken.
 
     Raises `google.api_core.exceptions.NotFound` if the secret or its versions don't exist.
     Use `require()` if you want absence signalled as a domain-level `MissingSecretError`.
     """
+    override = os.environ.get(env_var_for(name))
+    if override:
+        return override
     secret_path = f"projects/{PROJECT_ID}/secrets/{name}/versions/latest"
     response = _client().access_secret_version(request={"name": secret_path})
     return response.payload.data.decode("utf-8")

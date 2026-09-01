@@ -14,7 +14,7 @@ DATE = "2026-06-01"
 
 @dataclass
 class BoomStep:
-    """A step that always raises, to exercise the failure-halt path (AC-7)."""
+    """A step that always raises, to exercise the failure-halt path."""
 
     name: StepName = StepName.assemble
 
@@ -47,7 +47,7 @@ def test_happy_path_writes_ten_success_steps(run_store, lock_store, clock) -> No
 def test_run_has_ulid_runid_and_validates_against_schema(run_store, lock_store, clock) -> None:
     final = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock)
     assert len(final.run_id) == 26  # ULID
-    # Round-trips through the generated schema model (AC-2).
+    # Round-trips through the generated schema model.
     assert Run.model_validate(final.model_dump()) == final
 
 
@@ -63,7 +63,7 @@ def test_replay_overwrites_with_fresh_runid_no_orphans(run_store, lock_store, cl
 
 @dataclass
 class SkipStep:
-    """A step that ends the run gracefully via terminal_status (AD-3, the no_sources path)."""
+    """A step that ends the run gracefully via terminal_status."""
 
     name: StepName = StepName.validate_input
     status: RunStatus = RunStatus.skipped

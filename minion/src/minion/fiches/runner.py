@@ -1,14 +1,14 @@
 # pyright: basic
 # ^ subprocess boundary to the `claude` CLI, like generate/runner.py and publish/imagen.py; same
-#   basic-checking treatment. Behaviour is covered by test_fiches_extract.py (parser) and the
-#   step's own tests (runner faked via FakeFicheGenerateRunner).
+# basic-checking treatment. Behaviour is covered by test_fiches_extract.py (parser) and the
+# step's own tests (runner faked via FakeFicheGenerateRunner).
 """Production runner for the per-source fiche call.
 
-No slash command exists for this (unlike `/generate`, shipped by the pinned `claude-feature-flow`
-plugin — constitution §3): the prompt is authored here and passed to `claude -p` as a literal
-instruction, same one-shot shape as `publish.imagen.ClaudePromptRewriter`. The source's markdown
-is written to a temp file (as `generate.runner` does for the full context) so a long scrape never
-has to survive shell-argument escaping.
+No slash command exists for this, unlike `/generate`: the prompt is authored here and passed to
+`claude -p` as a literal instruction, the same one-shot shape as
+`publish.imagen.ClaudePromptRewriter`. The source's markdown is written to a temp file (as
+`generate.runner` does for the full context) so a long scrape never has to survive
+shell-argument escaping.
 """
 
 from __future__ import annotations

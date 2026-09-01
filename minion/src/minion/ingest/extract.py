@@ -1,7 +1,7 @@
-"""Pure article-URL extraction from newsletter bodies (F-004 AD-8).
+"""Pure article-URL extraction from newsletter bodies.
 
 No I/O, no dependencies beyond the stdlib `html.parser` — easy to unit-test and to tune
-during burn-in (F-013). The heuristic is deliberately conservative: collect every link, then
+during burn-in. The heuristic is deliberately conservative: collect every link, then
 drop only the *clearly* non-article ones (management links, social-share buttons, asset/
 tracking URLs, the sender's bare homepage), and deduplicate preserving first-seen order.
 """

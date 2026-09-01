@@ -1,8 +1,8 @@
-"""Minion-internal generation artefact models (F-005 AD-8).
+"""Minion-internal generation artefact models.
 
-These are *not* part of the PWA-facing shared schema; they are intermediate pipeline values
-carried in the orchestrator data bag between the `assemble`, `generate`, and `validate_output`
-steps. Every value crossing a step boundary is one of these Pydantic models (constitution §4).
+Intermediate pipeline values, carried in the orchestrator data bag between the `assemble`,
+`generate` and `validate_output` steps. Every value crossing a step boundary is one of these
+Pydantic models, never a raw dict.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ class ContextSource(BaseModel):
 
 
 class AssembledContext(BaseModel):
-    """The deterministic context bundle the `generate` step passes to `/generate` (FR-1)."""
+    """The deterministic context bundle the `generate` step passes to `/generate`."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -46,11 +46,11 @@ class ArticleFrontmatter(BaseModel):
 
 
 class GenerateInvocation(BaseModel):
-    """One `/generate` CLI call's result: the artefact text plus usage telemetry (F-011 AD-5).
+    """One `/generate` CLI call's result: the artefact text plus usage telemetry.
 
     `text` is the raw artefact the step parses into a `GeneratedArticle`. `cost_usd`/`tokens`
     come from `claude --output-format json` (`total_cost_usd` + `usage`); both are None when the
-    CLI did not report them (older/plain output shape — the fallback path, F-011 plan AD-5).
+    CLI did not report them — an older or plain output shape, which is a supported fallback.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -82,7 +82,7 @@ class ValidationError(BaseModel):
 
 
 class ValidationReport(BaseModel):
-    """The outcome of validating an article — the gate-of-record artefact (AD-3)."""
+    """The outcome of validating an article — the gate-of-record artefact."""
 
     model_config = ConfigDict(extra="forbid")
 

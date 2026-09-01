@@ -1,4 +1,4 @@
-"""Tests for deterministic context assembly (T-2.1, FR-1)."""
+"""Tests for deterministic context assembly."""
 
 from __future__ import annotations
 

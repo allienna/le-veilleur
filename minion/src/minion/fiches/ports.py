@@ -1,9 +1,9 @@
 """Fiche-generation port — mirrors `minion.generate.ports`, but for a single-source call.
 
-`/generate` is a slash command shipped by the pinned `allienna/claude-feature-flow` plugin
-(constitution §3); its prompt lives outside this repo. No equivalent per-source command exists
-there, so `FicheGenerateRunner` invokes `claude` with an inline literal prompt instead of a
-slash command — the fiches feature owns its own prompt text (`runner.py`), not an external one.
+The article is generated through the `/generate` slash command vendored at
+`.claude/commands/generate.md`. There is no equivalent per-source command, so
+`FicheGenerateRunner` invokes `claude` with an inline literal prompt instead: the fiches feature
+owns its own prompt text, in `runner.py`.
 """
 
 from __future__ import annotations

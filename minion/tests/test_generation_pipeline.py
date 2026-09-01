@@ -1,4 +1,4 @@
-"""End-to-end generation through `run_pipeline` with fakes (T-3.7).
+"""End-to-end generation through `run_pipeline` with fakes.
 
 Drives the full ten-step pipeline (real ingestion + generation steps, stubs for the rest)
 over the in-memory stores, covering the generation scenarios: happy path,

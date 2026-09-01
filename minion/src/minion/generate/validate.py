@@ -1,9 +1,9 @@
-"""Pure, deterministic validators for the generated artefact (F-005 FR-4/FR-5).
+"""Pure, deterministic validators for the generated artefact.
 
-No I/O — easy to unit-test and to tune during burn-in (F-013). `validate_structure` covers the
-PRD §3 caps + frontmatter completeness; `validate_copyright` enforces constitution §4 / FR-A3
+No I/O — easy to unit-test and to tune during burn-in. `validate_structure` covers the
+the length caps and frontmatter completeness; `validate_copyright` enforces the copyright rules
 against the original source texts; `validate_article` combines them into a `ValidationReport`.
-Token budgets use a char heuristic (AD-10/AD-12), a guard rather than an exact bound.
+Token budgets use a char heuristic, a guard rather than an exact bound.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ _WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
 
 
 def estimate_tokens(text: str) -> int:
-    """Approximate token count for a budget guard: ~4 characters per token (AD-10)."""
+    """Approximate token count for a budget guard: ~4 characters per token."""
     return math.ceil(len(text) / 4)
 
 
@@ -56,7 +56,7 @@ def _strip_quotes(text: str) -> str:
 
 
 def validate_structure(article: GeneratedArticle) -> list[ValidationError]:
-    """Frontmatter completeness + length/word/output-token caps (FR-4)."""
+    """Frontmatter completeness + length/word/output-token caps."""
     errors: list[ValidationError] = []
 
     for field in config.REQUIRED_FRONTMATTER_FIELDS:
@@ -114,7 +114,7 @@ def validate_structure(article: GeneratedArticle) -> list[ValidationError]:
 def validate_copyright(
     article: GeneratedArticle, sources: list[ContextSource]
 ) -> list[ValidationError]:
-    """Deterministic copyright rules over the original sources (constitution §4 / FR-A3, FR-5).
+    """Deterministic copyright rules over the original sources.
 
     Quoted spans (`« »` / `"…"`) are governed by the quote rules; the wholesale-reproduction
     n-gram check runs on the body with quotes *stripped*, so a legitimate ≤30-word attributed
@@ -130,7 +130,7 @@ def validate_copyright(
     # a substring of several sources' markdown; attributing it to every container inflates counts
     # and trips `too_many_quotes` on phrasing the article never over-quoted (the model then can't
     # satisfy the retry). A span shared by ≥2 sources is common reporting, not single-source
-    # over-quoting, so it pins to none. Identical spans are de-duplicated (constitution §4 / FR-5).
+    # over-quoting, so it pins to none. Identical spans are de-duplicated.
     per_source_quotes: dict[str, list[str]] = {s.url: [] for s in sources}
     normalized_sources = {s.url: " ".join(_normalize_tokens(s.markdown)) for s in sources}
     seen_quotes: set[str] = set()
@@ -147,7 +147,7 @@ def validate_copyright(
                 )
             )
         # Only substantial spans count toward the per-source limit: short quoted spans are
-        # product names / labels / emphasis, not copyrightable excerpts (constitution §4 intent).
+        # product names / labels / emphasis, not copyrightable excerpts.
         if len(quote.split()) < config.MIN_COUNTED_QUOTE_WORDS:
             continue
         containing = [url for url, text in normalized_sources.items() if normalized_quote in text]
@@ -160,7 +160,7 @@ def validate_copyright(
                 ValidationError(
                     code="too_many_quotes",
                     # Include the offending spans so burn-in can judge real over-quoting vs a
-                    # validator artefact without re-running (F-013).
+                    # validator artefact without re-running.
                     message=(
                         f"more than {config.MAX_QUOTES_PER_SOURCE} quote(s) from "
                         f"{source.url}: {quotes!r}"
@@ -168,7 +168,7 @@ def validate_copyright(
                 )
             )
 
-    # 2. Wholesale reproduction: shared run of ≥ WHOLESALE_NGRAM tokens, quotes excluded (AD-6).
+    # 2. Wholesale reproduction: shared run of ≥ WHOLESALE_NGRAM tokens, quotes excluded.
     article_ngrams: set[tuple[str, ...]] = set()
     for paragraph in _paragraphs(_strip_quotes(body)):
         article_ngrams |= _ngrams(_normalize_tokens(paragraph), config.WHOLESALE_NGRAM)
@@ -179,7 +179,7 @@ def validate_copyright(
         shared = source_ngrams & article_ngrams
         if shared:
             # Surface one shared run so burn-in can tell genuine copying from common boilerplate
-            # (e.g. a stock funding-round phrase) without re-running (F-013).
+            # (e.g. a stock funding-round phrase) without re-running.
             sample = " ".join(next(iter(shared)))
             errors.append(
                 ValidationError(
@@ -188,7 +188,7 @@ def validate_copyright(
                 )
             )
 
-    # 3. Attribution: a referenced source (name/domain in body) must link its URL (AD-7).
+    # 3. Attribution: a referenced source (name/domain in body) must link its URL.
     #
     # The domain check must only match a domain mentioned in *readable prose*, not one merely
     # embedded inside another citation's markdown link target — e.g. two sources sharing a

@@ -1,16 +1,18 @@
 # pyright: basic
 # ^ trafilatura ships no type stubs (see pyproject reportMissingTypeStubs); this SDK-boundary
-#   client is dropped to basic checking, matching secrets.py / store/firestore.py.
-"""Production scrape client (F-015) — fetch candidate URLs and extract clean Markdown locally.
+# client is dropped to basic checking, matching secrets.py.
+"""Production scrape client — fetch candidate URLs and extract clean Markdown locally.
 
-Replaces the rate-limited Jina Reader (PRD §5 amendment). Each URL is fetched directly from its
-origin with `httpx` (browser-like UA + redirects) and its main content is extracted in-process by
-`trafilatura` — no external scraping service, key, or rate limit. Scraping runs under a bounded
-thread pool (`SCRAPE_WORKERS`) with per-URL retry/backoff on transient errors and an overall
-deadline, so up to 100 URLs fit the ingestion budget (PRD §4). A URL that exhausts its retries —
-or is left unfinished at the deadline — is reported `failed`; a single bad source never raises
-(PRD §6 — the validation gate decides the run). Paywalled content is flagged via configured
-markers matched on the raw HTML (FR-3).
+Each URL is fetched directly from its origin with `httpx` (browser-like UA, follows redirects)
+and its main content extracted in-process by `trafilatura`. There is no external scraping
+service, so no key, no quota and no central rate limit to trip.
+
+Scraping runs under a bounded thread pool (`SCRAPE_WORKERS`), with per-URL retry/backoff on
+transient errors, a minimum interval between requests to the same host, and an overall deadline —
+so up to 100 URLs fit the ingestion budget. A URL that exhausts its retries, or is left unfinished
+at the deadline, is reported `failed`; a single bad source never raises, because it is the
+validation gate that decides whether the run continues. Paywalled content is flagged from markers
+matched against the raw HTML, before extraction can strip the paywall notice.
 """
 
 from __future__ import annotations

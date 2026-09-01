@@ -1,7 +1,7 @@
-"""Tests for the local extraction client (F-015) over httpx.MockTransport.
+"""Tests for the local extraction client over httpx.MockTransport.
 
 The fetch layer is mocked (MockTransport + no-op sleep); trafilatura runs for real on the canned
-HTML below — extraction is deterministic on static input. Also pins paywall detection (FR-3): a
+HTML below — extraction is deterministic on static input. Also pins paywall detection: a
 raw-HTML `PAYWALL_MARKERS` substring flags the source `paywalled`.
 """
 

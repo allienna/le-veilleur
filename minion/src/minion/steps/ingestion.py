@@ -1,13 +1,12 @@
 """Real ingestion steps: `gmail`, `scrape`, `validate_input`.
 
-These replace the F-003 stub bodies for the first three pipeline slots; the remaining six
-steps stay stubs (F-005/F-006). Each step depends only on an injected client Protocol
-(`GmailClient` / `ScraperClient`) so the pipeline runs hermetically under fakes (AD-1/AD-5).
+The first three pipeline slots. Each step depends only on an injected client Protocol
+(`GmailClient` / `ScraperClient`) so the pipeline runs hermetically under fakes.
 
 Data bag contract between the steps:
 - `gmail`          → writes `newsletters: list[Newsletter]`, `candidate_urls: list[str]`
 - `scrape`         → reads `candidate_urls`, writes `sources: SourceSet`
-- `validate_input` → reads `newsletters` + `sources`, gates the run (FR-4)
+- `validate_input` → reads `newsletters` + `sources`, gates the run
 """
 
 from __future__ import annotations
@@ -24,7 +23,7 @@ from minion.steps.base import StepContext, StepResult
 
 
 class InsufficientSourcesError(RuntimeError):
-    """Raised by `validate_input` when too few sources scraped OK to publish (FR-4)."""
+    """Raised by `validate_input` when too few sources scraped OK to publish."""
 
 
 def _sender_address(sender: str) -> str:
@@ -34,7 +33,7 @@ def _sender_address(sender: str) -> str:
 
 
 def _is_denied(sender: str, denylist: frozenset[str]) -> bool:
-    """True if `sender` matches the denylist by full address or `@domain` suffix (AD-10)."""
+    """True if `sender` matches the denylist by full address or `@domain` suffix."""
     address = _sender_address(sender)
     if not address:
         return False
@@ -112,7 +111,7 @@ class ValidateInputStep:
         sources = cast("SourceSet", ctx.data.get("sources") or SourceSet(sources=[]))
 
         if sources.total == 0:
-            # Empty mailbox / no usable URLs → graceful skip, not a failure (FR-4, AD-3).
+            # Empty mailbox / no usable URLs → graceful skip, not a failure.
             ctx.log.info("no sources; skipping run", extra={"reason": "no_sources"})
             return StepResult(terminal_status=RunStatus.skipped, reason="no_sources")
 

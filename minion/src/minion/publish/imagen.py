@@ -1,7 +1,7 @@
 # pyright: basic
 # ^ wraps the google-genai SDK (incomplete stubs) and the `claude` subprocess boundary; like
-#   generate/runner.py it is dropped to basic checking. Behaviour is covered by the in-memory
-#   fakes + the gated integration test (no Imagen/Claude in CI).
+# generate/runner.py it is dropped to basic checking. Behaviour is covered by the in-memory
+# fakes + the gated integration test (no Imagen/Claude in CI).
 """Production publishing adapters: Imagen image generation + Claude prompt rewrite.
 
 `GeminiImageGenerator` asks Imagen for one 16:9 image and returns its PNG bytes, raising

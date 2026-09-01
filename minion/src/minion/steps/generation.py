@@ -1,9 +1,8 @@
-"""Real generation steps (F-005): `assemble`, `generate`, `validate_output`.
+"""The generation steps: `assemble`, `generate`, `validate_output`.
 
-These replace the F-003 stub bodies for pipeline slots 4-6; the remaining three steps
-(`imagen`, `github`, `publish`) stay stubs (F-006/F-012). The agentic retry loop is
+Pipeline slots 4 to 6. The agentic retry loop is
 encapsulated in `GenerateStep` (it owns the runner + feedback); `ValidateOutputStep` is the
-deterministic gate of record over the report `GenerateStep` stored (AD-3).
+deterministic gate of record over the report `GenerateStep` stored.
 
 Data bag contract:
 - `assemble`        -> reads `sources`, writes `context: AssembledContext`
@@ -76,7 +75,7 @@ def _parse_article(raw: str) -> GeneratedArticle:
 
 @dataclass
 class AssembleStep:
-    """Step 4: package the validated sources into the `/generate` context bundle (FR-1)."""
+    """Step 4: package the validated sources into the `/generate` context bundle."""
 
     name: StepName = StepName.assemble
 
@@ -89,7 +88,7 @@ class AssembleStep:
 
 @dataclass
 class GenerateStep:
-    """Step 5: the agentic call + validation-retry loop (AD-3, FR-2/FR-6).
+    """Step 5: the agentic call + validation-retry loop.
 
     Owns the `GenerateRunner`. Each attempt invokes `/generate` (with its own transport-retry),
     parses + validates the artefact, and on validation failure re-invokes with the errors fed
@@ -101,7 +100,7 @@ class GenerateStep:
     name: StepName = StepName.generate
 
     def _invoke(self, context: AssembledContext, feedback: list[str]) -> GenerateInvocation:
-        """One logical invocation with transport-retry + exponential backoff (FR-2, AC-7)."""
+        """One logical invocation with transport-retry + exponential backoff."""
         for attempt in range(config.CLAUDE_TRANSPORT_RETRIES + 1):
             try:
                 return self.runner.invoke(context, feedback)
@@ -116,7 +115,7 @@ class GenerateStep:
         feedback: list[str] = []
         last_errors: list[ValidationError] = []
         # Run-level cost/tokens: sum every billed `/generate` call (each retry costs money),
-        # surfaced to the orchestrator for the run document (F-011 AD-5). None until a call
+        # surfaced to the orchestrator for the run document. None until a call
         # reports usage, so a CLI that doesn't emit it leaves the run's cost null.
         cost_usd: float | None = None
         tokens: int | None = None
@@ -138,7 +137,7 @@ class GenerateStep:
                         "attempt": attempt,
                         # Log the head of claude's raw artefact text so the malformed shape
                         # (markdown fences, prose preamble, truncation at the output-token cap) is
-                        # diagnosable from logs rather than reproduced by hand (F-013 burn-in).
+                        # diagnosable from logs rather than reproduced by hand.
                         "rawHead": invocation.text[:1500],
                         "rawLen": len(invocation.text),
                     },
@@ -170,7 +169,7 @@ class GenerateStep:
                     "attempt": attempt,
                     "errors": [e.code for e in report.errors],
                     # Full messages carry the offending quotes / shared n-gram; bodyHead lets
-                    # burn-in judge real-vs-false without re-running (F-013).
+                    # burn-in judge real-vs-false without re-running.
                     "errorMessages": [e.message for e in report.errors],
                     "bodyHead": article.body[:1000],
                 },
@@ -184,14 +183,14 @@ class GenerateStep:
 
 @dataclass
 class ValidateOutputStep:
-    """Step 6: the deterministic gate of record over the stored report (AD-3, constitution §4)."""
+    """Step 6: the deterministic gate of record over the stored report."""
 
     name: StepName = StepName.validate_output
 
     def run(self, ctx: StepContext) -> StepResult:
         report = ctx.data.get("report")
         if not isinstance(report, ValidationReport):
-            # Fail closed: a missing report means `generate` never produced one (AD-3).
+            # Fail closed: a missing report means `generate` never produced one.
             raise OutputValidationError("output validation failed: no validation report")
         if not report.ok:
             codes = ", ".join(e.code for e in report.errors)

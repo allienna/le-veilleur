@@ -1,6 +1,6 @@
-"""Deterministic context assembly for `/generate` (F-005 FR-1, AD-10).
+"""Deterministic context assembly for `/generate`.
 
-Turns the validated `SourceSet` (F-004) into the `AssembledContext` the agent consumes: only
+Turns the validated `SourceSet` into the `AssembledContext` the agent consumes: only
 `ok` sources, in source order, trimmed so the estimated token count fits the 500k input budget.
 Truncation drops the lowest-priority (trailing) sources and is logged — never silent.
 """

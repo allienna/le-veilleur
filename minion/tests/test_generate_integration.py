@@ -1,4 +1,4 @@
-"""Gated integration test for the real `/generate` runner (T-3.8, AD-11).
+"""Gated integration test for the real `/generate` runner.
 
 Marked `integration` so it is deselected by default (`addopts = -m 'not integration'`) — CI /
 build-minion stay hermetic. Run explicitly with `uv run pytest -m integration` on a host that

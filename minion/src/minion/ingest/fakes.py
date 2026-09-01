@@ -1,4 +1,4 @@
-"""Hermetic test doubles for the ingestion ports (F-004 AD-1).
+"""Hermetic test doubles for the ingestion ports.
 
 Mirrors `store/memory.py`: in-memory fakes that satisfy the `GmailClient` / `ScraperClient`
 Protocols so steps and the full pipeline can be exercised without network access.

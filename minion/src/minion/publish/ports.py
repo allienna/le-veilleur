@@ -2,7 +2,7 @@
 
 Mirrors `generate/ports.py` and `ingest/ports.py`: the publish steps depend on these Protocols,
 `imagen.py` / `github.py` implement them over the real SDKs, and `fakes.py` provides hermetic
-doubles. Retry/backoff and the moderation fallback live in the *steps* (plan AD-2), not here.
+doubles. Retry/backoff and the moderation fallback live in the *steps*, not here.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ class ImagenBlockedError(RuntimeError):
 
 class ContentRepoError(RuntimeError):
     """A GitHub Contents API call failed (non-2xx or transport). The `github` step retries with
-    backoff and, only after exhausting them, hard-fails the run (FR-3 / PRD §6)."""
+    backoff and, only after exhausting them, hard-fails the run."""
 
 
 class ImageGenerator(Protocol):

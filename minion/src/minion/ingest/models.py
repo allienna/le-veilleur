@@ -1,9 +1,9 @@
-"""Minion-internal ingestion boundary models (F-004 AD-6).
+"""Minion-internal ingestion boundary models.
 
-These are *not* part of the PWA-facing shared schema (`shared/schema/*.json`); they are
+These are
 intermediate pipeline values carried in the orchestrator data bag between the `gmail`,
 `scrape`, and `validate_input` steps. Every value crossing a step boundary is one of these
-Pydantic models (constitution §4), never a raw dict.
+Pydantic models, never a raw dict.
 """
 
 from __future__ import annotations
@@ -49,10 +49,10 @@ class ScrapedSource(BaseModel):
 
 
 class SourceSet(BaseModel):
-    """The full set of scraped sources for a run — the input to the validation gate (FR-4).
+    """The full set of scraped sources for a run — the input to the validation gate.
 
     `ok_count / total` and `ok_count` drive the ≥50%-AND-≥5 threshold; paywalled and failed
-    sources count toward `total` but not toward `ok_count` (PRD §6, FR-A3).
+    sources count toward `total` but not toward `ok_count`.
     """
 
     model_config = ConfigDict(extra="forbid")

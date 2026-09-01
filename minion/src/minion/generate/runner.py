@@ -1,15 +1,14 @@
 # pyright: basic
-# ^ subprocess boundary to the external `claude` CLI + the plugin's `/generate` command; like
-#   store/firestore.py and the gmail/scrape clients it is dropped to basic checking. Behaviour is
-#   covered by test_generate_runner.py (subprocess mocked) and the gated integration test.
-"""Production runner for the agentic `/generate` call (F-005 FR-2/FR-7, AD-2/AD-4/AD-9).
+# ^ subprocess boundary to the external `claude` CLI and the vendored `/generate` command; like
+# the gmail/scrape clients it is dropped to basic checking. Behaviour is covered by
+# test_generate_runner.py (subprocess mocked) and the gated integration test.
+"""Production runner for the agentic `/generate` call.
 
-Promotes the F-001 `spike/claude_probe.py` invocation to production: spawns
-`claude -p "/generate <context-file>" --permission-mode bypassPermissions` with the OAuth-only
-env (`CLAUDE_CODE_OAUTH_TOKEN` injected, `ANTHROPIC_API_KEY` stripped — constitution §2.2), and
-returns the raw artefact text on stdout. The assembled context and any prior-attempt validation
-feedback are written to a temp JSON file whose path is passed to the command. Transport failures
-(binary missing / timeout / non-zero exit) raise `GenerateTransportError`.
+Spawns `claude -p "/generate <context-file>" --permission-mode bypassPermissions` with the
+OAuth-only env (`CLAUDE_CODE_OAUTH_TOKEN` injected, `ANTHROPIC_API_KEY` stripped) and returns the
+raw artefact text on stdout. The assembled context and any prior-attempt validation feedback are
+written to a temp JSON file whose path is passed to the command. Transport failures (binary
+missing, timeout, non-zero exit) raise `GenerateTransportError`.
 """
 
 from __future__ import annotations
@@ -29,7 +28,7 @@ def _parse_output(stdout: str) -> GenerateInvocation:
     """Unwrap the `claude --output-format json` envelope into artefact text + usage telemetry.
 
     The envelope is `{"result": "<artefact text>", "total_cost_usd": <float>, "usage": {...}}`.
-    Fallback (F-011 plan AD-5): if stdout is not that envelope (plain text, or the artefact JSON
+    Fallback: if stdout is not that envelope (plain text, or the artefact JSON
     itself — neither has a `result` key), treat the whole stdout as the artefact text with no cost.
     """
     try:
@@ -107,7 +106,7 @@ class ClaudeGenerateRunner:
         if result.returncode != 0:
             # claude `--output-format json` reports auth / usage / API errors in the stdout
             # envelope (`is_error`, `api_error_status`, `result`), not stderr — surface both so a
-            # silent exit 1 is diagnosable (F-013 burn-in observability).
+            # silent exit 1 is diagnosable.
             raise GenerateTransportError(
                 f"claude /generate exited {result.returncode}: "
                 f"stderr={result.stderr[:300]!r} stdout={result.stdout[:500]!r}"

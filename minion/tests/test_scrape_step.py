@@ -1,4 +1,4 @@
-"""Tests for ScrapeStep over FakeScraperClient (T-3.2)."""
+"""Tests for ScrapeStep over FakeScraperClient."""
 
 from __future__ import annotations
 

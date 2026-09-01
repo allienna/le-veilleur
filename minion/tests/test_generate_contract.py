@@ -74,3 +74,19 @@ def test_spec_sources_example_is_parseable_by_count_sources() -> None:
     template = re.search(r"```markdown\n(.*?)```", _spec_text(), re.DOTALL)
     assert template is not None
     assert count_sources(template.group(1)) == 2  # the two entries in the template
+
+
+def test_env_var_override_lets_the_pipeline_run_without_gcp(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """`just run` on a laptop has no GCP credentials, so every secret must be overridable by an
+    environment variable. If this breaks, a local run dies inside the Secret Manager client."""
+    from minion import secrets
+
+    assert secrets.env_var_for("gemini-api-key") == "GEMINI_API_KEY"
+    assert secrets.env_var_for("gmail-oauth-refresh-token") == "GMAIL_OAUTH_REFRESH_TOKEN"
+
+    monkeypatch.setenv("GITHUB_PAT", "ghp-from-env")
+    # No Secret Manager client is constructed at all when the override is present.
+    monkeypatch.setattr(
+        secrets, "_client", lambda: (_ for _ in ()).throw(AssertionError("hit Secret Manager"))
+    )
+    assert secrets.require("github-pat") == "ghp-from-env"

@@ -1,4 +1,4 @@
-"""Tests for ValidateInputStep — the skip path and the ≥50%-AND-≥5 gate (T-3.3, FR-4)."""
+"""Tests for ValidateInputStep — the skip path and the ≥50%-AND-≥5 gate."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tests for the pure article-URL extraction heuristic (T-1.6, AD-8)."""
+"""Tests for the pure article-URL extraction heuristic."""
 
 from __future__ import annotations
 

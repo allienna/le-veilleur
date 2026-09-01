@@ -1,4 +1,4 @@
-"""Tests for the real Claude generate runner with subprocess mocked (T-2.2 / T-2.3).
+"""Tests for the real Claude generate runner with subprocess mocked.
 
 No `claude` binary, plugin, or network — `subprocess.run` and the secret accessor are stubbed.
 """
@@ -71,7 +71,7 @@ def test_unwraps_json_envelope_with_cost_and_tokens(monkeypatch: pytest.MonkeyPa
 
 
 def test_falls_back_to_raw_text_without_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Plain artefact JSON (no `result` key) — treated as the artefact text, no cost (AD-5 fallback).
+    # Plain artefact JSON (no `result` key) — treated as the artefact text, no cost.
     _capture(monkeypatch, _Completed(returncode=0, stdout='{"theme":"ai"}'))
     invocation = ClaudeGenerateRunner().invoke(CONTEXT, [])
     assert invocation.text == '{"theme":"ai"}'
@@ -80,7 +80,7 @@ def test_falls_back_to_raw_text_without_envelope(monkeypatch: pytest.MonkeyPatch
 
 
 def test_non_numeric_cost_degrades_to_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    # A non-numeric `total_cost_usd`/usage must degrade to null, never crash the runner (AD-5).
+    # A non-numeric `total_cost_usd`/usage must degrade to null, never crash the runner.
     envelope = json.dumps(
         {"result": "{}", "total_cost_usd": "oops", "usage": {"input_tokens": "x"}}
     )

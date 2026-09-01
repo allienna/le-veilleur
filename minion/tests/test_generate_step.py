@@ -1,5 +1,5 @@
 """Tests for the generation steps: assemble, the generate retry loop, validate_output gate
-(T-3.1 … T-3.4)."""
+."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def _artifact(**overrides: Any) -> str:
     return json.dumps(payload)
 
 
-# --- AssembleStep (T-3.1) ----------------------------------------------------------------
+# --- AssembleStep ----------------------------------------------------------------
 
 
 def test_assemble_step_writes_context() -> None:
@@ -62,7 +62,7 @@ def test_assemble_step_writes_context() -> None:
     assert [s.url for s in context.sources] == ["https://s.io/1"]
 
 
-# --- GenerateStep: parse / theme / transport (T-3.2) -------------------------------------
+# --- GenerateStep: parse / theme / transport -------------------------------------
 
 
 def test_generate_parses_and_stores_article() -> None:
@@ -87,7 +87,7 @@ def test_transport_error_retries_then_propagates() -> None:
     assert len(runner.calls) == 1 + config.CLAUDE_TRANSPORT_RETRIES  # initial + transport retries
 
 
-# --- GenerateStep: validation retry loop (T-3.3) -----------------------------------------
+# --- GenerateStep: validation retry loop -----------------------------------------
 
 
 def test_invalid_then_valid_retries_with_feedback() -> None:
@@ -117,7 +117,7 @@ def test_exhausted_validation_retries_raises() -> None:
     assert len(runner.calls) == 1 + config.MAX_GENERATE_RETRIES  # initial + validation retries
 
 
-# --- ValidateOutputStep (T-3.4) ----------------------------------------------------------
+# --- ValidateOutputStep ----------------------------------------------------------
 
 
 def test_validate_output_passes_on_ok_report() -> None:

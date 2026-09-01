@@ -1,4 +1,4 @@
-"""Tests for the copyright post-validator (T-1.5, FR-5 / constitution §4)."""
+"""Tests for the copyright post-validator."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tests for artefact parsing robustness (F-005, F-013 burn-in).
+"""Tests for artefact parsing robustness.
 
 The agentic `/generate` model wraps the JSON artefact in a conversational preamble (and
 sometimes trailing commentary). `_parse_article` must recover the embedded object rather than

@@ -1,4 +1,4 @@
-"""Run-level LLM cost/tokens capture through `run_pipeline` with fakes (F-011 T-2.2).
+"""Run-level LLM cost/tokens capture through `run_pipeline` with fakes.
 
 The generate step sums `total_cost_usd`/`usage` across every billed `/generate` call and the
 orchestrator writes them to `runs/{date}`; a run that never reaches `generate` leaves them None.
@@ -85,7 +85,7 @@ def test_cost_null_when_generate_never_runs(run_store, lock_store, clock) -> Non
 
 
 def test_cost_null_when_cli_reports_none(run_store, lock_store, clock) -> None:
-    # CLI that doesn't emit usage (AD-5 fallback) → run cost stays null even on success.
+    # CLI that doesn't emit usage → run cost stays null even on success.
     runner = FakeGenerateRunner(outputs=[_artifact()])
     final = _run(runner, run_store, lock_store, clock)
     assert final.status is RunStatus.success

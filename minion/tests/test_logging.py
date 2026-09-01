@@ -51,7 +51,7 @@ def test_run_logs_are_json_and_carry_runid(capsys) -> None:  # type: ignore[no-u
         clock=clock,
     )
     lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
-    payloads = [json.loads(ln) for ln in lines]  # every line is valid JSON (AC-9)
+    payloads = [json.loads(ln) for ln in lines]  # every line is valid JSON
     assert payloads
     assert {p["runId"] for p in payloads} == {final.run_id}  # all tagged with this run's id
     assert any(p.get("step") for p in payloads)  # per-step logs carry the step name
