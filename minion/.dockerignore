@@ -1,0 +1,17 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+tests
+.git
+.gitignore
+.dockerignore
+*.md
+!README.md
+# The vendored /generate command must reach the build context (copied into the image).
+!.claude/commands/*.md
+.env
+.env.*

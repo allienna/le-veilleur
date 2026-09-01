@@ -1,0 +1,6 @@
+# Toolchain for this repo. `mise install` once per clone / CI runner.
+# node builds the Astro site; uv runs the minion; just wraps both.
+[tools]
+node = "22.13"
+uv = "latest"
+just = "latest"

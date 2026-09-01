@@ -1,0 +1,130 @@
+"""Orchestrator lifecycle: happy path, replay idempotency, step-failure halt, schema shape."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from minion.config import STEP_ORDER
+from minion.models import Run, RunStatus, StepName
+from minion.orchestrator import run_pipeline
+from minion.steps import StepContext, StepResult
+
+DATE = "2026-06-01"
+
+
+@dataclass
+class BoomStep:
+    """A step that always raises, to exercise the failure-halt path (AC-7)."""
+
+    name: StepName = StepName.assemble
+
+    def run(self, ctx: StepContext) -> StepResult:
+        raise RuntimeError("boom")
+
+
+@dataclass
+class RecordingStep:
+    """Records whether it ran, to assert steps after a failure are skipped."""
+
+    name: StepName
+    ran: list[StepName] = field(default_factory=list)
+
+    def run(self, ctx: StepContext) -> StepResult:
+        self.ran.append(self.name)
+        return StepResult()
+
+
+def test_happy_path_writes_ten_success_steps(run_store, lock_store, clock) -> None:
+    final = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock)
+    assert final.status is RunStatus.success
+    assert final.error is None
+    assert final.ended_at is not None
+    assert [s.name for s in final.steps] == list(STEP_ORDER)
+    assert all(s.status is RunStatus.success for s in final.steps)
+    assert all(s.error is None for s in final.steps)
+
+
+def test_run_has_ulid_runid_and_validates_against_schema(run_store, lock_store, clock) -> None:
+    final = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock)
+    assert len(final.run_id) == 26  # ULID
+    # Round-trips through the generated schema model (AC-2).
+    assert Run.model_validate(final.model_dump()) == final
+
+
+def test_replay_overwrites_with_fresh_runid_no_orphans(run_store, lock_store, clock) -> None:
+    first = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock)
+    second = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock)
+    assert second.run_id != first.run_id
+    stored = run_store.get_run(DATE)
+    assert stored is not None
+    assert stored.run_id == second.run_id
+    assert len(stored.steps) == 9  # no duplicate/orphan step records from the first attempt
+
+
+@dataclass
+class SkipStep:
+    """A step that ends the run gracefully via terminal_status (AD-3, the no_sources path)."""
+
+    name: StepName = StepName.validate_input
+    status: RunStatus = RunStatus.skipped
+    reason: str = "no_sources"
+
+    def run(self, ctx: StepContext) -> StepResult:
+        return StepResult(terminal_status=self.status, reason=self.reason)
+
+
+def test_step_terminal_status_skips_run_and_halts(run_store, lock_store, clock) -> None:
+    after = RecordingStep(name=StepName.generate)
+    steps = (RecordingStep(name=StepName.gmail), SkipStep(), after)
+    final = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=steps)
+    assert final.status is RunStatus.skipped
+    assert final.error == "no_sources"
+    assert final.ended_at is not None
+    statuses = {s.name: s.status for s in final.steps}
+    assert statuses[StepName.gmail] is RunStatus.success
+    assert statuses[StepName.validate_input] is RunStatus.success  # the step itself succeeded
+    assert StepName.generate not in statuses  # steps after the skip never ran
+    assert after.ran == []
+
+
+def test_terminal_skip_releases_lock(run_store, lock_store, clock) -> None:
+    steps = (SkipStep(),)
+    run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=steps)
+    # A subsequent run must be able to acquire the lock (released on graceful exit, AC-6).
+    second = run_pipeline(
+        DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=steps
+    )
+    assert second.status is RunStatus.skipped
+
+
+def test_step_failure_marks_run_failure_and_halts(run_store, lock_store, clock) -> None:
+    after = RecordingStep(name=StepName.generate)
+    steps = (RecordingStep(name=StepName.gmail), BoomStep(), after)
+    final = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=steps)
+    assert final.status is RunStatus.failure
+    assert final.error is not None and "boom" in final.error
+    statuses = {s.name: s.status for s in final.steps}
+    assert statuses[StepName.gmail] is RunStatus.success
+    assert statuses[StepName.assemble] is RunStatus.failure
+    assert StepName.generate not in statuses  # step after the failure never ran
+    assert after.ran == []
+
+
+def test_returns_the_final_assembled_run_on_each_terminal_path(
+    run_store, lock_store, clock
+) -> None:
+    """`run_pipeline`'s return value is the caller's only view of the outcome (there is no
+    remote store to read back), so it must be the finalized run on every path."""
+    ok = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock)
+    assert ok.status is RunStatus.success and ok.ended_at is not None
+    assert ok == run_store.get_run(DATE)
+
+    skipped = run_pipeline(
+        DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=(SkipStep(),)
+    )
+    assert skipped.status is RunStatus.skipped and skipped.error == "no_sources"
+
+    failed = run_pipeline(
+        DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=(BoomStep(),)
+    )
+    assert failed.status is RunStatus.failure and failed.error is not None
