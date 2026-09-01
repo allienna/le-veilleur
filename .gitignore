@@ -1,3 +1,6 @@
+# Local scratch space (Instagram renders, NotebookLM exports)
+data/
+
 # Python
 .venv/
 __pycache__/

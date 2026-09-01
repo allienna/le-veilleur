@@ -1,0 +1,31 @@
+name: validate-infra
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "functions/**"
+      - ".github/workflows/validate-infra.yml"
+  pull_request:
+    paths:
+      - "infra/**"
+      - "functions/**"
+      - ".github/workflows/validate-infra.yml"
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+      - name: Format check
+        run: terraform -chdir=infra fmt -check -recursive
+      # No credentials and no backend: this only proves the configuration is well-formed and
+      # internally consistent. It never touches the live project.
+      - name: Init (no backend)
+        run: terraform -chdir=infra init -backend=false -input=false
+      - name: Validate
+        run: terraform -chdir=infra validate

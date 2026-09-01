@@ -148,7 +148,9 @@ class GithubStep:
         # a failure here must not leave the article unpublished, but losing it silently would
         # defeat the point of the run, so it is not swallowed either.
         linkedin_path = config.LINKEDIN_PATH_TEMPLATE.format(date=ctx.date)
-        linkedin_body = f"# LinkedIn — {ctx.date}\n\n{article.linkedin.strip()}\n"
+        # The post text alone, no heading: the whole file is meant to be selected and pasted
+        # into LinkedIn, and the filename already carries the date.
+        linkedin_body = f"{article.linkedin.strip()}\n"
         commits.append(
             CommitResult(
                 path=linkedin_path,

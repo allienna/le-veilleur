@@ -1,0 +1,16 @@
+# Local tooling only — the Instagram renderer and the NotebookLM driver in scripts/.
+#
+# The pipeline itself is a separate, self-contained uv project in minion/ with its own
+# dependencies. Nothing here ships to the cloud; these are on-demand tools run by hand.
+[project]
+name = "le-veilleur-tools"
+version = "0.0.0"
+description = "Local on-demand tooling for Le Veilleur (Instagram renders, NotebookLM notebooks)."
+requires-python = ">=3.11"
+dependencies = [
+    "playwright>=1.40.0", # renders the Instagram carousel/teaser in a headless browser
+    "pillow>=10.0.0",     # post-processes those renders
+]
+
+[tool.uv]
+package = false
