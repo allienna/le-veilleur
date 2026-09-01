@@ -1,0 +1,85 @@
+---
+import TagPill from './TagPill.astro';
+
+interface Props {
+  slug: string;
+  title: string;
+  date: Date;
+  themes: string[];
+  sources?: number;
+  image?: string;
+  href?: string;
+  kind?: 'veille' | 'blog';
+}
+
+const { slug, title, date, themes, sources, image, href, kind = 'veille' } = Astro.props;
+
+const base = import.meta.env.BASE_URL;
+const dateStr = date.toISOString().slice(0, 10);
+const link = href || `${base}/articles/${slug}`;
+
+const formattedDate = date.toLocaleDateString('fr-FR', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+});
+
+const imageUrl = image ? `${base}/images/${image}` : `${base}/placeholder-veilleur.svg`;
+
+const isBlog = kind === 'blog';
+
+const badgeConfig = {
+  veille: { label: 'Veille', badgeClass: 'bg-primary text-slate-900' },
+  blog: { label: 'Article', badgeClass: 'bg-navy-custom text-white' },
+};
+const badge = badgeConfig[kind];
+
+const borderClass = isBlog
+  ? 'ring-2 ring-navy-custom/30'
+  : 'border border-slate-100';
+---
+
+<article class="flex flex-col group cursor-pointer">
+  <a
+    href={link}
+    class={`w-full aspect-video rounded-xl mb-5 shadow-sm overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 relative ${borderClass}`}
+    aria-label={`Lire l'article : ${title}`}
+    tabindex="-1"
+    aria-hidden="true"
+  >
+    <img
+      src={imageUrl}
+      alt=""
+      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+      width="800"
+      height="450"
+      loading="lazy"
+    />
+    <span class={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm ${badge.badgeClass}`}>
+      {badge.label}
+    </span>
+  </a>
+
+  {themes.length > 0 && (
+    <div class="flex flex-wrap gap-2 mb-3">
+      {themes.slice(0, 3).map((theme) => <TagPill tag={theme} />)}
+    </div>
+  )}
+
+  <h2 class="text-xl font-bold mb-2 group-hover:text-primary transition-colors leading-snug">
+    <a
+      href={link}
+      class="focus:outline-none focus:ring-2 focus:ring-primary rounded"
+    >
+      {title}
+    </a>
+  </h2>
+
+  <p class="text-slate-500 text-sm font-medium">
+    <time datetime={dateStr}>{formattedDate}</time>
+    {isBlog
+      ? <span class="ml-1.5 inline-block px-2 py-0.5 rounded bg-navy-custom/10 text-navy-custom text-xs font-semibold align-middle">Billet personnel</span>
+      : sources !== undefined && <span> • {sources} source{sources > 1 ? 's' : ''}</span>
+    }
+  </p>
+</article>

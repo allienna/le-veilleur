@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+.ruff_cache/
+.pytest_cache/
+
+# Astro site build output
+site/dist/
+site/.astro/
+site/node_modules/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+# Secrets
+.env
+*.key.json
+
+# OS
+.DS_Store
+.claude/settings.json

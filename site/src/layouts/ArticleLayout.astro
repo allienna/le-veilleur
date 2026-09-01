@@ -1,0 +1,254 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import TagPill from '../components/TagPill.astro';
+import { getCollection } from 'astro:content';
+
+interface Props {
+  title: string;
+  date: Date;
+  themes: string[];
+  minutesRead?: string;
+  image?: string;
+  body?: string;
+}
+
+const { title, date, themes, minutesRead, image, body } = Astro.props;
+
+// Parse sources and "pour aller plus loin" from markdown body
+function parseLinks(text: string): { title: string; url: string; domain: string }[] {
+  const links: { title: string; url: string; domain: string }[] = [];
+  const regex = /[-\d.]+\s*\[(.+?)\]\((.+?)\)/gm;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const url = match[2];
+    let domain = '';
+    try { domain = new URL(url).hostname.replace('www.', ''); } catch {}
+    links.push({ title: match[1], url, domain });
+  }
+  return links;
+}
+
+let sourceLinks: { title: string; url: string; domain: string }[] = [];
+let furtherLinks: { title: string; url: string; domain: string; description: string }[] = [];
+if (body) {
+  const sourcesMatch = body.match(/## Sources\n([\s\S]*?)(?=\n## |$)/);
+  if (sourcesMatch) sourceLinks = parseLinks(sourcesMatch[1]);
+
+  const furtherMatch = body.match(/## Pour aller plus loin\n([\s\S]*?)(?=\n## |$)/);
+  if (furtherMatch) {
+    const regex = /[-\d.]+\s*\[(.+?)\]\((.+?)\)(?:\s*—\s*(.+))?/gm;
+    let match;
+    while ((match = regex.exec(furtherMatch[1])) !== null) {
+      const url = match[2];
+      let domain = '';
+      try { domain = new URL(url).hostname.replace('www.', ''); } catch {}
+      furtherLinks.push({ title: match[1], url, domain, description: match[3]?.trim() || '' });
+    }
+  }
+}
+
+const base = import.meta.env.BASE_URL;
+const dateStr = date.toISOString().slice(0, 10);
+
+const allFiches = await getCollection('fiches');
+const linkedFiches = allFiches.filter((f) => f.data.used_in.includes(dateStr));
+
+const formattedDate = date.toLocaleDateString('fr-FR', {
+  day: '2-digit',
+  month: 'long',
+  year: 'numeric',
+});
+
+const imageUrl = image ? `${base}/images/${image}` : `${base}/placeholder-veilleur.svg`;
+---
+
+<BaseLayout title={title} image={image} type="article" publishedDate={date.toISOString()}>
+  {/* Hero image — full width with gradient overlay */}
+  <section class="w-full bg-slate-200">
+    <div class="aspect-[16/9] w-full max-h-[70vh] relative overflow-hidden">
+      <img
+        src={imageUrl}
+        alt={image ? title : 'Illustration Le Veilleur'}
+        class="w-full h-full object-cover"
+        width="1600"
+        height="900"
+        loading="eager"
+      />
+      <div class="absolute inset-0 bg-gradient-to-t from-background-dark/80 to-transparent"></div>
+    </div>
+  </section>
+
+  {/* Article card — overlapping the hero */}
+  <article class="max-w-[800px] mx-auto px-4 -mt-24 relative z-10 bg-background-light rounded-t-3xl pt-12 pb-20">
+
+    {/* Badge + Tags */}
+    <div class="flex flex-wrap items-center gap-2 mb-6">
+      <span class="px-3 py-1 rounded-full bg-primary/20 text-amber-700 text-xs font-bold uppercase tracking-widest">Veille</span>
+      {themes.map((theme) => <TagPill tag={theme} />)}
+    </div>
+
+    {/* Title */}
+    <h1 class="text-4xl md:text-6xl font-black leading-[1.1] mb-6 text-slate-900 tracking-tight">
+      {title}
+    </h1>
+
+    {/* Author bar */}
+    <div class="flex items-center gap-4 mb-10">
+      <img src={`${base}/images/avatar.jpg`} alt="Aurélien Allienne" class="size-12 rounded-full object-cover shrink-0" />
+      <div>
+        <p class="font-bold text-slate-900">Aurélien Allienne</p>
+        <p class="text-sm text-slate-500">
+          Publié le <time datetime={dateStr}>{formattedDate}</time>
+          {minutesRead && <span> • {minutesRead.replace('min read', 'min de lecture')}</span>}
+        </p>
+      </div>
+    </div>
+
+    {/* Body */}
+    <div class="prose prose-slate max-w-none text-lg leading-relaxed
+      prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-slate-900 
+      prose-h2:text-3xl prose-h2:pt-4 prose-h3:text-2xl prose-h3:pt-6 prose-h3:mt-2
+      prose-a:text-primary prose-a:underline prose-a:decoration-primary/30 hover:prose-a:decoration-primary
+      prose-strong:text-slate-900
+      prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-blockquote:py-2 prose-blockquote:italic prose-blockquote:text-2xl prose-blockquote:font-light prose-blockquote:text-slate-600
+      prose-p:text-slate-700 prose-p:leading-relaxed
+      prose-li:text-slate-700
+      article-intro
+      prose-h1:hidden">
+      <slot />
+    </div>
+
+    {/* Pour aller plus loin */}
+    {furtherLinks.length > 0 && (
+      <section class="mt-12 pt-8 border-t border-slate-200">
+        <h2 class="text-xl font-bold text-slate-900 mb-6">Pour aller plus loin</h2>
+        <div class="divide-y divide-primary/20">
+          {furtherLinks.map((link) => (
+            <div class="py-5">
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-bold text-primary hover:underline"
+              >
+                {link.title}
+              </a>
+              {link.description && (
+                <p class="text-sm text-slate-500 mt-1">— {link.description}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {/* CTA fiches */}
+    {linkedFiches.length > 0 && (
+      <div class="mt-2 pt-2 text-center">
+        <a
+          href={`${base}/fiches?article=${dateStr}`}
+          class="inline-block px-8 py-4 bg-primary text-slate-900 font-black text-sm uppercase tracking-widest rounded-xl hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+        >
+          Consulter toutes les analyses de cet article
+        </a>
+      </div>
+    )}
+
+    {/* Disclaimer */}
+    <p class="mt-16 pt-8 border-t border-slate-200 text-sm italic text-slate-400">
+      Cet article a été rédigé en m'appuyant sur une IA pour m'aider à synthétiser et structurer ma veille. Les idées, le choix des sources et la relecture restent les miens.
+    </p>
+  </article>
+
+  <script define:vars={{ sourceLinks }}>
+    document.addEventListener('DOMContentLoaded', () => {
+      const prose = document.querySelector('.prose');
+      if (!prose) return;
+
+      // Build a map: url → { title, domain, url }
+      const sourceByUrl = new Map();
+      sourceLinks.forEach((s, i) => {
+        sourceByUrl.set(s.url, { index: i + 1, title: s.title, domain: s.domain, url: s.url });
+      });
+
+      // Collect all matching links first, then modify (avoid textContent pollution)
+      const matches = [];
+      prose.querySelectorAll('a').forEach((a) => {
+        const text = a.textContent.trim();
+        if (!/^\d+$/.test(text)) return;
+        const source = sourceByUrl.get(a.href);
+        if (!source) return;
+        matches.push({ a, source });
+      });
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'source-tooltip';
+      document.body.appendChild(tooltip);
+
+      matches.forEach(({ a, source }) => {
+        a.addEventListener('mouseenter', () => {
+          tooltip.innerHTML = `
+            <span class="source-tooltip-body">
+              <span class="source-tooltip-title">${source.title.replace(/</g, '&lt;')}</span>
+              <span class="source-tooltip-domain">${source.domain}</span>
+            </span>
+          `;
+          tooltip.style.display = 'flex';
+        });
+
+        a.addEventListener('mousemove', (e) => {
+          tooltip.style.left = e.clientX + 12 + 'px';
+          tooltip.style.top = e.clientY + 16 + 'px';
+        });
+
+        a.addEventListener('mouseleave', () => {
+          tooltip.style.display = 'none';
+        });
+      });
+    });
+  </script>
+
+  <style is:global>
+    .source-tooltip {
+      display: none;
+      position: fixed;
+      width: 220px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 50;
+      font-weight: 400;
+      text-decoration: none;
+      font-style: normal;
+      flex-direction: column;
+      box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    }
+
+    .source-tooltip-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0.625rem 0.75rem;
+    }
+
+    .source-tooltip-title {
+      color: #0f172a;
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      white-space: normal;
+    }
+
+    .source-tooltip-domain {
+      color: #94a3b8;
+      font-size: 0.625rem;
+      text-transform: uppercase;
+    }
+  </style>
+</BaseLayout>
