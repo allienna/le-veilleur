@@ -3,33 +3,124 @@ title: "GitHub - jeffhajewski/latticedb: Embedded single-file knowledge graph da
 date: 2026-09-02
 url: "https://elink56e.dataelixir.com/ss/c/u001.Dt8L-Y0jq6TkmYqlU8wlZM7Wgh8ux-hPslUUIPQJ3xXXxW52jH-bDhBx-qLtpsVT-UOFQUgiWGZ79GGR2aSFXp4YDnu92uhRXAjcTmK2VP6c71SToUeQsLLnU_U_Qkg8y61AcdAsvl3kd-ekmdKS6vS1M9BFU2Af0p2os2k-2J-l4zSGUrw9l2mmwinZ0gvz9yNn9G7ubvcmeMJd2w1_Ug/4to/fP9g9RI3QPmrGoOJ8JMNAQ/h11/h001.l7y9IE4rTbHeBBiNFkxi2YfGxWPRBWr7dD7HaERkXuE"
 authors: ["Jeff Hajewski"]
-keywords: ["base de données graphe", "vector search", "embedded database", "RAG", "Zig", "full-text search"]
-theme: "Data"
-tone: "research"
+keywords: ["base de données graphe", "recherche vectorielle", "embarqué", "RAG", "full-text", "HNSW"]
+theme: "Tech"
+tone: "tutorial"
 used_in: ["2026-09-02"]
 ---
 
 ## Résumé
-LatticeDB est une base de données graphe embarquée en un seul fichier, écrite en Zig sans dépendances, qui unifie dans un même moteur et un même langage de requête la traversée de graphe, la recherche vectorielle (HNSW) et la recherche plein texte (BM25). Conçue pour un modèle mono-processus/mono-écrivain sur une seule machine, elle vise les usages de type Graph RAG, mémoire d'agent et outils de connaissance locaux, sans serveur ni configuration. Le projet met en avant des benchmarks agressifs (lookup de nœud à 0,13 µs, recherche vectorielle à 0,83 ms sur 1M de vecteurs avec 100% de recall) comparés à SQLite, RocksDB, Neo4j, FAISS, Weaviate, Qdrant et d'autres. Des bindings existent pour Python, TypeScript/Node.js, Go et Java, et le projet documente aussi honnêtement ses limites (mono-écrivain, Cypher partiel, pas de clustering).
+LatticeDB est une base de données de graphe embarquée, mono-fichier, écrite en Zig, qui combine dans un seul moteur et un seul langage de requête : traversée de graphe, recherche vectorielle par similarité (HNSW) et recherche plein texte (BM25). Elle vise les charges de travail locales, mono-processus, riches en relations — RAG, mémoire d'agent, outils de connaissance locaux — sans serveur ni configuration. Le projet met en avant des benchmarks agressifs (0,13 µs pour une lecture de nœud, 0,83 ms pour une recherche vectorielle à 1M de vecteurs avec 100% de rappel) et se positionne comme une alternative légère à SQLite, Neo4j ou des bases vectorielles dédiées pour le prototypage sur une seule machine. Des bindings existent pour Python, TypeScript/Node.js, Go et Java, avec un langage de requête proche de Cypher.
 
 ## Points clés
-- Un seul fichier, un seul moteur : graphe (nœuds/arêtes/propriétés), recherche vectorielle HNSW et recherche plein texte BM25 sont interrogeables via un même langage proche de Cypher (opérateurs `<=>` pour la distance vectorielle et `@@` pour le texte).
-- Performances revendiquées très élevées : ~0,13 µs par lookup de nœud, ~0,83 ms pour une recherche des 10 plus proches voisins sur 1M de vecteurs (100% de recall), traversées de graphe 10 à plus de 2800x plus rapides que des CTE récursives SQLite selon la profondeur.
-- Modèle embarqué mono-écrivain : pas de serveur, un seul processus propriétaire du fichier ; sauvegarde continue et instantanés possibles, mais pas de scaling multi-nœud ni d'écritures concurrentes multi-clients.
-- Fonctionnalités opérationnelles solides pour un projet jeune : WAL, transactions ACID, sauvegarde à chaud, sérialisation en bytes pour du stockage objet, mode `:memory:`, flux nommés durables et changefeed de graphe.
-- Limites explicitement documentées : Cypher incomplet (pas de `OPTIONAL MATCH` ni de procédures `CALL`), pas d'écosystème d'outillage mature (pas de dashboard, peu de drivers), pertinent seulement quand les relations entre données sont centrales et non pour des données tabulaires classiques.
-- Écrit en Zig, sans dépendances externes ; embeddings de test fournis (`hash_embed`) explicitement présentés comme un placeholder déterministe non sémantique, à remplacer par un vrai modèle d'embedding (Ollama/OpenAI via client HTTP) pour un usage réel.
+- Un seul fichier, un seul moteur : traversée de graphe (Cypher-like), recherche vectorielle HNSW et recherche plein texte BM25 dans le même langage de requête.
+- Modèle mono-écrivain embarqué, local-first, avec journal WAL pour la durabilité et la reprise après crash.
+- Benchmarks internes revendiquant des performances supérieures à SQLite, RocksDB, FAISS, Neo4j, Weaviate ou Qdrant sur des opérations comparables.
+- Ne convient pas aux cas nécessitant plusieurs écrivains concurrents, du multi-nœud/sharding, des données purement tabulaires, ou l'intégralité du langage Cypher (pas de `OPTIONAL MATCH` ni de procédures `CALL`).
+- Écosystème jeune et minimal comparé à Neo4j ou PostgreSQL (peu d'outillage, pas de dashboards, pas de drivers matures dans tous les langages).
+- Fonctionnalités opérationnelles notables : sauvegarde continue, sauvegarde à chaud, sérialisation en mémoire, flux nommés durables et changefeed de graphe.
 
 ## Analyse approfondie
-LatticeDB se positionne sur un créneau précis : les applications locales dont les données sont avant tout des relations (graphe) mais qui ont aussi besoin de recherche sémantique (vecteurs) et de recherche lexicale (plein texte) sur le même jeu de données, sans vouloir déployer un serveur dédié. L'argument central du projet est l'unification — un seul fichier portable, un seul moteur de requête, un seul journal d'événements (WAL) partagé entre écritures de graphe et flux applicatifs — plutôt que d'assembler trois systèmes séparés (par exemple Neo4j + un vector store + un moteur FTS).
+**Base de données propriété-graphe avec indexation vectorielle et plein texte native.**
 
-Sur le plan du modèle de données, LatticeDB expose un graphe de propriétés classique (nœuds et arêtes typés, propriétés arbitraires, index d'égalité durables), avec transactions ACID, reprise après crash, et un sous-ensemble de Cypher couvrant MATCH/WHERE/RETURN/CREATE/DELETE/SET/REMOVE, MERGE/WITH/UNWIND, les agrégations usuelles, les chemins de longueur variable (`*1..3`), ORDER BY/LIMIT/SKIP et DETACH DELETE. La recherche vectorielle repose sur HNSW (paramètres M, ef configurables), avec des embeddings soit fournis en placeholder (`hash_embed`, explicitement qualifié de déterministe et non sémantique — à ne pas utiliser pour un résultat qui doit avoir un sens), soit obtenus via un client HTTP vers Ollama ou OpenAI. La recherche plein texte s'appuie sur un index inversé avec scoring BM25, tokenisation, stemming et recherche floue par distance de Levenshtein configurable.
+LatticeDB est une base de données locale mono-fichier pour des données connectées, sémantiques et textuelles. Elle permet de parcourir des relations, d'exécuter une recherche par similarité vectorielle et de faire une recherche plein texte BM25 sur le même jeu de données, dans un seul moteur et une seule couche de requête. Elle est conçue pour des charges de travail riches en relations sur une seule machine, avec un fonctionnement sans configuration et un modèle embarqué mono-écrivain.
 
-Les chiffres de performance avancés sont nombreux et comparés à plusieurs familles de systèmes. Pour les opérations ponctuelles sur une machine Apple M1 mono-thread : lookup de nœud en 0,13 µs (7,9M ops/s), création de nœud en 0,65 µs, traversée d'arête en 9 µs, recherche plein texte sur 100 documents en 19 µs. Le projet revendique une parité ou une supériorité face à RocksDB en mémoire et SQLite, et une avance nette sur SQLite FTS5 (facteur ~300x) et sur Elasticsearch pour le plein texte, tout en restant dans l'ordre de grandeur de Tantivy. Pour la recherche vectorielle à l'échelle du million de vecteurs (embeddings 128 dimensions, cosinus, M=16, ef_construction=200, ef_search=64, k=10) : latence moyenne de 0,83 ms avec 100% de recall@10, revendiquée plus rapide que FAISS HNSW mono-thread et compétitive avec des systèmes serveur comme Weaviate ou Qdrant (qui ajoutent en pratique une latence réseau). Une table de sensibilité au paramètre ef_search montre le compromis classique latence/recall (de 57% de recall à 506 µs jusqu'à 100% à 990 µs–11,6 ms selon la valeur). Pour les traversées de graphe, une comparaison directe avec SQLite (mêmes machine et harnais) sur un graphe social à distribution en loi de puissance montre des gains croissants avec la profondeur : de 23x plus rapide pour un saut à plus de 2800x pour une traversée limitée à 50 sauts, LatticeDB utilisant un parcours BFS avec cache d'adjacence et suivi par bitset, contre une CTE récursive avec déduplication UNION côté SQLite dont le coût croît avec chaque niveau de récursion. Le projet précise honnêtement que seules les lignes SQLite sont mesurées dans le même harnais que LatticeDB ; les chiffres cités pour Neo4j ou Kuzu viennent de billets tiers, sur du matériel et avec une méthodologie non maîtrisés, et doivent être lus comme des ordres de grandeur plutôt que comme un résultat de benchmark comparable.
+LatticeDB est une base de données de graphe embarquée, mono-fichier, qui permet aux applications locales d'interroger les mêmes données par relation, sémantique et texte, puis de consommer des événements durables de graphe et d'application depuis ce même fichier. Des charges de travail comme le Graph RAG, la mémoire d'agent et les outils de connaissance locaux en sont des exemples construits sur ces primitives, pas la définition du moteur.
 
-Côté écosystème, l'installation se fait via un script shell, ou par gestionnaire de paquets pour chaque langage (`pip install latticedb`, `npm install @hajewski/latticedb`), avec une bibliothèque native `liblattice` embarquée dans les paquets publiés. Les bindings Java nécessitent un JDK 21+ et un pont JNI compilé via Maven ; les bindings Go utilisent cgo avec `pkg-config` en usage normal. Le dépôt fournit des exemples exécutables pour chaque langage, illustrant typiquement la construction d'un petit graphe (auteurs, documents, chunks), l'indexation vectorielle et plein texte des chunks, puis une requête combinant les trois modes de recherche en une seule clause MATCH/WHERE/RETURN.
+- **Un seul fichier.** Toute la base de données est un fichier unique et portable. Pas de serveur, pas de configuration.
+- **Une seule couche de requête.** Traversée de graphe, similarité vectorielle HNSW et plein texte BM25 — dans le même langage de requête.
+- **Un seul journal d'événements.** Des flux nommés durables et un changefeed de graphe intégré partagent le même chemin de transaction/WAL que les écritures du graphe.
+- **Local-first.** Conçue pour un seul processus propriétaire sur une seule machine, avec durabilité assurée par le WAL.
+- **Rapide.** Lecture de nœud en 0,13 µs. Recherche vectorielle en 0,83 ms sur 1M de vecteurs avec 100% de rappel.
 
-Le projet est aussi transparent sur les cas où il n'est pas le bon choix : plusieurs applications devant écrire simultanément dans la même base (modèle mono-écrivain, donc préférer Neo4j ou PostgreSQL) ; données fondamentalement tabulaires (SQLite ou PostgreSQL suffiront et seront plus simples) ; besoin de scaler au-delà d'une seule machine (LatticeDB peut répliquer en continu vers un stockage externe pour la sauvegarde, mais ne fait pas de sharding ni de lecture distribuée — voir plutôt Neo4j en cluster, Dgraph ou un service managé comme Neptune) ; dépendance à des fonctionnalités Cypher non encore implémentées comme `OPTIONAL MATCH` ou les procédures `CALL` ; besoin d'un outillage mature (visualisation, dashboards d'administration, monitoring, drivers dans de nombreux langages), où l'ancienneté et l'écosystème de Neo4j ou PostgreSQL restent un avantage net face à un projet jeune et volontairement minimal.
+```
+// Trouver des chunks similaires à une requête, remonter au document puis à l'auteur
+MATCH (chunk:Chunk)-[:PART_OF]->(doc:Document)-[:AUTHORED_BY]->(author:Person)
+WHERE chunk.embedding <=> $query_vector < 0.3
+  AND doc.content @@ "neural networks"
+RETURN doc.title, chunk.text, author.name
+ORDER BY chunk.embedding <=> $query_vector
+LIMIT 10
+```
+
+**CLI** : `curl -fsSL https://raw.githubusercontent.com/jeffhajewski/latticedb/main/dist/install.sh | bash`
+
+**Python** : `pip install latticedb`. Les wheels publiées sont censées embarquer `liblattice` sur les plateformes supportées. Les installations depuis les sources peuvent aussi embarquer une bibliothèque native pré-construite via `LATTICE_BUNDLE_LIB_DIR=/path/to/lib`.
+
+**TypeScript / Node.js** : `npm install @hajewski/latticedb`. Les tarballs publiées sont censées embarquer `liblattice` sur les plateformes supportées. Les checkouts depuis les sources peuvent intégrer la bibliothèque native dans le package avec `LATTICE_BUNDLE_LIB_DIR=/path/to/lib npm run bundle:native`.
+
+**Java** : nécessite JDK 21+. Voir bindings/java/README.md pour la construction Maven, qui compile le pont JNI et intègre `liblattice` depuis `zig-out/lib`. Un exemple exécutable de graphe de connaissance se trouve dans bindings/java/src/main/java/io/latticedb/examples.
+
+**Go** : voir bindings/go/README.md pour le workflow cgo actuel. Le chemin consommateur par défaut utilise les métadonnées `pkg-config` installées ; le développement dans le dépôt peut utiliser `-tags repolocal` contre `zig-out/lib`. Il existe aussi un exemple exécutable de récupération graphe/vecteur/texte dans examples/go.
+
+Des nettoyages récents de la surface des bindings ont déplacé les helpers d'embedding vers des modules et sous-packages dédiés. Voir docs/client_api_migration.md pour les imports préférés et les alias de compatibilité actuels.
+
+- Le guide « Getting Started » propose le chemin le plus court pour CLI, Python, TypeScript, Go et Java.
+- Le « CLI Quickstart » est le plus petit exemple copier-coller du dépôt.
+- La vue d'ensemble des exemples couvre les démonstrations plus larges de récupération graphe/vecteur/texte.
+
+Un exemple complet : créer un petit graphe de connaissance avec des documents et des auteurs, stocker des embeddings, indexer du texte, puis interroger les trois modes de recherche à la fois.
+
+Les exemples utilisent le helper intégré `hash_embed` / `hashEmbed` / `HashEmbed` afin de fonctionner sans service externe. C'est un substitut déterministe, pas un embedding sémantique réel : un texte similaire ne produit pas des vecteurs proches, donc un seuil de distance est arbitraire et une requête de similarité peut ne rien trouver. Utilisez un vrai modèle d'embedding dès que le résultat doit avoir un sens — voir « Working with Embeddings ».
+
+[Suivent des exemples de code identiques en Python, TypeScript, Go et Java, illustrant la création d'un graphe (Person, Document, Chunk), le stockage de vecteurs, l'indexation plein texte et une requête combinant traversée de graphe, recherche vectorielle et agrégations.]
+
+Benchmarks réalisés sur Apple M1, mono-thread, avec pool de buffers auto-dimensionné. Exécuter `zig build benchmark` pour reproduire. Pour la charge d'indexation FTS à termes répétés qui avait révélé un comportement quadratique, exécuter `zig build fts-benchmark`.
+
+| Opération | Latence | Débit | Cible | Statut |
+|---|---|---|---|---|
+| Lecture de nœud | 0,13 µs | 7,9M ops/s | < 1 µs | PASS |
+| Création de nœud | 0,65 µs | 1,5M ops/s | — | — |
+| Traversée d'arête | 9 µs | 111K ops/s | — | — |
+| Recherche plein texte (100 docs) | 19 µs | 53K ops/s | — | — |
+| 10-NN vectoriel (1M vecteurs) | 0,83 ms | 1,2K ops/s | < 10 ms @ 1M | PASS |
+
+Vecteurs cosinus à 128 dimensions, M=16, ef_construction=200, ef_search=64, k=10. Exécuter `zig build vector-benchmark` pour reproduire.
+
+| Échelle | Latence moyenne | Latence P99 | Rappel@10 | Mémoire |
+|---|---|---|---|---|
+| 1 000 | 65 µs | 70 µs | 100% | 1 Mo |
+| 10 000 | 174 µs | 695 µs | 99% | 10 Mo |
+| 100 000 | 438 µs | 1,2 ms | 99% | 101 Mo |
+| 1 000 000 | 832 µs | 1,8 ms | 100% | 1 040 Mo |
+
+La latence de recherche croît de façon sous-linéaire (O(log N)) avec un rappel@10 de 99-100%. Utilise une sélection heuristique de voisins (Algorithme 4 du papier HNSW) pour une connectivité de graphe diversifiée, un compactage des pages de connexion pour une réduction mémoire d'environ 4,5x, et un produit scalaire pré-normalisé pour une distance cosinus rapide.
+
+**Sensibilité à ef_search (1M vecteurs)**
+
+| ef_search | Latence moyenne | Rappel@10 |
+|---|---|---|
+| 16 | 506 µs | 57% |
+| 32 | 1,9 ms | 79% |
+| 64 | 990 µs | 100% |
+| 128 | 3,2 ms | 100% |
+| 256 | 11,6 ms | 100% |
+
+Comparaisons annoncées : sur la latence de lecture de nœud, LatticeDB (0,13 µs) se situe au niveau de RocksDB en mémoire (0,14 µs) et devance SQLite sur disque de 23x. Sur la recherche vectorielle 10-NN à 1M, LatticeDB (0,83 ms, 100% de rappel) devance FAISS HNSW mono-thread (0,5-3 ms) et reste compétitive face à Weaviate et Qdrant, serveurs qui ajoutent une latence réseau en pratique. Sur la traversée à 2 sauts (100K nœuds), LatticeDB affiche 39 µs contre 548 µs pour une CTE récursive SQLite — seules ces deux lignes sont mesurées sur la même machine avec le même harnais ; les chiffres Kuzu et Neo4j viennent de sources tierces et ne sont donc qu'indicatifs.
+
+**LatticeDB vs SQLite** — graphe de réseau social à distribution en loi de puissance, cache d'adjacence préchargé :
+
+À petite échelle (10K nœuds, 50K arêtes), LatticeDB est 23x plus rapide sur une traversée à 1 saut, 13x à 2 sauts, 9x à 3 sauts, et 52x sur un chemin de longueur variable (1..5). À échelle moyenne (100K nœuds, 500K arêtes), les gains vont de 6x à 75x selon l'opération. Sur une traversée à profondeur limitée, l'écart se creuse fortement avec la profondeur : de 390x à une profondeur de 10 jusqu'à 2 819x à une profondeur de 50. LatticeDB utilise un parcours BFS avec cache d'adjacence et suivi de visite par bitset ; SQLite utilise une CTE récursive avec déduplication `UNION`. Les deux calculent le même ensemble de nœuds atteignables (~8K nœuds) ; l'écart s'élargit aux profondeurs importantes car le coût de la CTE croît à chaque niveau de récursion.
+
+Sur la recherche plein texte, l'index inversé à score BM25 de LatticeDB (19 µs) est annoncé environ 300x plus rapide que SQLite FTS5 (< 6 ms) et compétitif avec Tantivy, une bibliothèque de recherche Rust dédiée.
+
+**Fonctionnalités**
+
+*Graphe* : nœuds et arêtes avec labels et propriétés arbitraires ; index d'égalité durables sur des propriétés ciblées ; traversée multi-sauts et chemins de longueur variable (`*1..3`) ; transactions ACID avec commit/rollback et reprise après crash ; `MERGE`, `WITH`, `UNWIND`, agrégations (`count`, `sum`, `avg`, `min`, `max`, `collect`).
+
+*Recherche vectorielle* : plus proches voisins approximatifs HNSW (M, ef configurables) ; embeddings par hachage intégrés ou client HTTP pour Ollama/OpenAI ; insertion en masse de nœuds vectoriels pour une ingestion rapide.
+
+*Recherche plein texte* : index inversé à score BM25 avec tokenisation et racinisation (stemming) ; recherche floue avec distance de Levenshtein configurable.
+
+*Langage de requête (proche de Cypher)* : `MATCH`, `WHERE`, `RETURN`, `CREATE`, `DELETE`, `SET`, `REMOVE`, `ORDER BY`, `LIMIT`, `SKIP`, `DETACH DELETE` ; opérateur de distance vectorielle `<=>` ; opérateur de recherche plein texte `@@` ; paramètres `$name`.
+
+*Opérations* : stockage mono-fichier avec journal d'écriture anticipée (WAL) pour la reprise après crash ; sauvegarde continue vers un répertoire avec restauration à un point dans le temps ; sauvegarde à chaud via `lattice backup`, sans fermer la base ; sérialisation d'une base en octets et ouverture depuis des octets, pour stocker de nombreuses petites bases dans du stockage objet ; bases en mémoire avec `:memory:`, sans toucher au disque ; flux nommés durables avec offsets de consommateur explicites, purge manuelle et changefeeds de graphe ; réutilisation de freelist en ligne plus `lattice compact` pour une récupération physique sûre de la queue ; zéro configuration ; modèle embarqué mono-écrivain pour applications locales ; API C propre, avec bindings Python, TypeScript, Go et Java.
+
+**Cas d'usage visés** : données locales connectées (notes, documents, catalogues, graphes de citations et d'entités) ; graphe plus récupération (traversée relationnelle, recherche sémantique et lexicale sur le même jeu de données) ; outils de connaissance locaux embarqués sans serveur séparé ; mémoire d'agent et pipelines RAG comme exemple de charge construite sur le substrat graphe/vecteur/texte ; développement local comme alternative légère à Neo4j ou Weaviate pour le prototypage sur une machine.
+
+**Quand ne pas utiliser LatticeDB** : si plusieurs applications doivent écrire simultanément dans la même base (modèle mono-écrivain, préférer Neo4j ou PostgreSQL) ; si les données sont fondamentalement tabulaires (une base relationnelle comme SQLite ou PostgreSQL sera plus simple et tout aussi rapide) ; si le besoin dépasse une seule machine (LatticeDB peut répliquer les changements d'un fichier en continu — c'est de la sauvegarde, pas du clustering ; pour du sharding ou des requêtes distribuées sur des milliards de nœuds, voir Neo4j cluster, Dgraph ou un service managé comme Neptune) ; si le langage Cypher complet est requis (pas encore de `OPTIONAL MATCH` ni de procédures `CALL` — Neo4j reste l'implémentation complète) ; si un outillage et un écosystème mûrs sont nécessaires (Neo4j dispose d'outils de visualisation, de dashboards d'administration, de monitoring et de drivers dans tous les langages ; PostgreSQL a des décennies d'outillage ; LatticeDB est jeune et léger, un atout pour l'embarqué mais une faiblesse pour un écosystème opérationnel riche).
+
+Écrit en Zig, sans dépendances. Construction : `git clone ... && cd latticedb && zig build && zig build test`. La documentation complète vit sur docs.latticedb.org (référence Cypher, API C/Python/TypeScript/Go, guides, internals du moteur de stockage) ; latticedb.org est le site du projet.
 
 ## Pourquoi ça compte
-C'est un signal intéressant pour la veille GenAI/RAG : la convergence graphe + vecteurs + plein texte dans un moteur embarqué unique, sans serveur, répond directement aux besoins d'agent memory et de Graph RAG local, avec des benchmarks qui, s'ils se confirment en usage réel, changent l'équation coût/complexité face à l'empilement classique Neo4j + vector store + moteur FTS séparés.
+LatticeDB illustre la tendance à unifier graphe, recherche vectorielle et plein texte dans un seul moteur embarqué mono-fichier, une architecture directement pertinente pour les pipelines RAG et la mémoire d'agent qui, jusqu'ici, empilaient souvent trois systèmes séparés (base relationnelle, base vectorielle, moteur de recherche).
