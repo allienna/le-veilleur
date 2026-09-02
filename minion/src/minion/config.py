@@ -147,10 +147,14 @@ MAX_GENERATE_RETRIES: int = 1
 
 # --- Publish: Imagen + GitHub ------------------------------------------------------------
 
-# Imagen via the Gemini API (an API key, not GCP IAM) — so the pipeline also runs locally
-# without GCP credentials. Imagen returns PNG bytes, which the site consumes as-is.
+# Image generation via the Gemini API (an API key, not GCP IAM) — so the pipeline also runs
+# locally without GCP credentials. There is no Imagen model behind a Developer API key (only
+# behind Vertex IAM or a Gemini Enterprise-tied key); the reachable model family is the Gemini
+# multimodal "image" models, called through generate_content, not generate_images/predict.
+# gemini-2.5-flash-image returns PNG bytes natively in this mode — the newer 3.1 family defaults
+# to JPEG and Developer API keys cannot override that (output_mime_type is Enterprise-only).
 GEMINI_API_KEY_SECRET: str = "gemini-api-key"
-IMAGEN_MODEL: str = "imagen-4.0-fast-generate-001"
+IMAGE_MODEL: str = "gemini-2.5-flash-image"
 IMAGEN_ASPECT_RATIO: str = "16:9"  # every hero image is 16:9
 # One agentic prompt-rewrite retry on a moderation rejection before giving up on the image.
 IMAGEN_RETRIES: int = 1

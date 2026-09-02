@@ -1,10 +1,8 @@
 """Gated integration test for the real `/generate` runner.
 
-Marked `integration` so it is deselected by default (`addopts = -m 'not integration'`) — CI /
-build-minion stay hermetic. Run explicitly with `uv run pytest -m integration` on a host that
-has the `claude` CLI, the `allienna/claude-feature-flow` plugin, and the OAuth token secret.
-This test is the executable record of the AD-4 contract: `/generate` must emit a single JSON
-document parseable into `GeneratedArticle`.
+Marked `integration` so it is deselected by default (`addopts = -m 'not integration'`) — CI stays
+hermetic. Run explicitly with `uv run pytest -m integration` on a host that has the `claude` CLI
+and the OAuth token secret; the vendored `.claude/commands/generate.md` supplies the spec.
 """
 
 from __future__ import annotations
@@ -38,7 +36,7 @@ def test_real_generate_emits_parseable_artefact() -> None:
             )
         ]
     )
-    raw = ClaudeGenerateRunner().invoke(context, [])
-    article = GeneratedArticle.model_validate(json.loads(raw))
+    invocation = ClaudeGenerateRunner().invoke(context, [])
+    article = GeneratedArticle.model_validate(json.loads(invocation.text))
     assert article.theme
     assert article.body

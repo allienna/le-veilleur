@@ -22,7 +22,7 @@ import os
 import subprocess
 
 from google import genai
-from google.genai.types import GenerateImagesConfig
+from google.genai.types import GenerateContentConfig, ImageConfig
 
 from minion import config, secrets
 from minion.publish.ports import ImagenBlockedError
@@ -36,7 +36,7 @@ _REWRITE_INSTRUCTION = (
 
 
 class GeminiImageGenerator:
-    """`ImageGenerator` over the Gemini API's Imagen model (API key, no GCP IAM)."""
+    """`ImageGenerator` over a Gemini multimodal image model (API key, no GCP IAM)."""
 
     def __init__(self) -> None:
         self._client: genai.Client | None = None
@@ -48,23 +48,24 @@ class GeminiImageGenerator:
 
     def generate(self, prompt: str) -> bytes:
         try:
-            response = self._get_client().models.generate_images(
-                model=config.IMAGEN_MODEL,
-                prompt=prompt,
-                config=GenerateImagesConfig(
-                    aspect_ratio=config.IMAGEN_ASPECT_RATIO, number_of_images=1
+            response = self._get_client().models.generate_content(
+                model=config.IMAGE_MODEL,
+                contents=prompt,
+                config=GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    image_config=ImageConfig(aspect_ratio=config.IMAGEN_ASPECT_RATIO),
                 ),
             )
-            images = response.generated_images
-            if images:
-                image_obj = images[0].image
-                if image_obj is not None and image_obj.image_bytes:
-                    return image_obj.image_bytes
+            candidates = response.candidates or []
+            content = candidates[0].content if candidates else None
+            for part in content.parts or [] if content else []:
+                if part.inline_data and part.inline_data.data:
+                    return part.inline_data.data
         except Exception as exc:
             # Auth / quota / 5xx / network — surface as ImagenBlockedError so the step follows the
             # rewrite/omit fallback rather than hard-failing the run.
-            raise ImagenBlockedError(f"Imagen generation failed: {exc}") from exc
-        raise ImagenBlockedError("Imagen returned no usable image (safety filter, empty, or quota)")
+            raise ImagenBlockedError(f"Image generation failed: {exc}") from exc
+        raise ImagenBlockedError("Model returned no usable image (safety filter, empty, or quota)")
 
 
 def _build_env() -> dict[str, str]:
