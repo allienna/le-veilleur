@@ -38,6 +38,12 @@ resource "google_billing_budget" "monthly_cap" {
   }
 
   depends_on = [google_project_service.enabled]
+
+  lifecycle {
+    # The API echoes back budget_filter.projects as "projects/<number>", never the name we
+    # write ("projects/veilleur-app") — a cosmetic normalization, not real drift.
+    ignore_changes = [budget_filter[0].projects]
+  }
 }
 
 # ─── Function source: zip the dir, upload to a GCS bucket ─────────────────────────────────
