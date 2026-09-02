@@ -23,6 +23,15 @@ resource "google_cloud_run_v2_job" "minion" {
         image = "${var.region}-docker.pkg.dev/${var.project_id}/minion/minion:${var.image_tag}"
         args  = ["run"]
 
+        # Unbuffered stdout: each JSON log line reaches Cloud Logging immediately rather than
+        # sitting in Python's block buffer, which matters for diagnosing a run that dies
+        # unexpectedly (an uncaught exception, not the OOM-kill case — nothing survives SIGKILL
+        # either way).
+        env {
+          name  = "PYTHONUNBUFFERED"
+          value = "1"
+        }
+
         resources {
           limits = {
             cpu    = "1"

@@ -7,17 +7,16 @@
 # IAM) and firestore (there is no datastore any more).
 locals {
   apis = [
-    "run.googleapis.com",             # the Cloud Run Job
-    "artifactregistry.googleapis.com" # the Minion image
-    ,
-    "secretmanager.googleapis.com",  # the four runtime secrets
-    "gmail.googleapis.com",          # ingestion
-    "cloudscheduler.googleapis.com", # the daily trigger
-    "pubsub.googleapis.com",         # budget event transport
-    "cloudfunctions.googleapis.com", # the kill-switch function (2nd gen)
-    "cloudbuild.googleapis.com",     # 2nd-gen function source build
-    "eventarc.googleapis.com",       # 2nd-gen function Pub/Sub trigger
-    "billingbudgets.googleapis.com", # the budget itself
+    "run.googleapis.com",              # the Cloud Run Job
+    "artifactregistry.googleapis.com", # the Minion image
+    "secretmanager.googleapis.com",    # the four runtime secrets
+    "gmail.googleapis.com",            # ingestion
+    "cloudscheduler.googleapis.com",   # the daily trigger
+    "pubsub.googleapis.com",           # budget event transport
+    "cloudfunctions.googleapis.com",   # the kill-switch function (2nd gen)
+    "cloudbuild.googleapis.com",       # 2nd-gen function source build
+    "eventarc.googleapis.com",         # 2nd-gen function Pub/Sub trigger
+    "billingbudgets.googleapis.com",   # the budget itself
   ]
 }
 

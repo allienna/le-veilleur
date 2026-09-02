@@ -16,4 +16,9 @@ terraform {
 provider "google" {
   project = var.project_id
   region  = var.region
+
+  # Personal user ADC (not a service account) has no baked-in quota project, and
+  # billingbudgets.googleapis.com refuses to answer without one. Bill quota to this project.
+  billing_project       = var.project_id
+  user_project_override = true
 }
