@@ -4,8 +4,10 @@ Data bag contract:
 - reads `article: GeneratedArticle` + `context: AssembledContext`
 - writes nothing new steps downstream depend on (this is the last step).
 
-Each fiche is committed to `site/src/content/fiches/{date}-{slug}.md` through the same
-`ContentRepository` the article uses.
+Every generated fiche is committed to `site/src/content/fiches/{date}-{slug}.md` in ONE
+commit, through the same `ContentRepository` the article uses — batched for the same reason
+the article's own files are: one commit per fiche flooded the history and the Pages deploy
+workflow.
 
 Never raises: a failed fiche (transport error, unparseable output, failed structural validation)
 is skipped and logged, not fatal. If at least one fiche fails, the step returns a `warning` —
@@ -112,6 +114,17 @@ class FichesStep:
             body=generated.body,
         )
 
+    def _commit_with_retry(self, files: list[tuple[str, bytes]], message: str) -> str:
+        """Commit the batch with exponential-backoff retry; raise after exhausting."""
+        for attempt in range(config.GITHUB_RETRIES + 1):
+            try:
+                return self.content_repo.put_files(files, message)
+            except ContentRepoError:
+                if attempt >= config.GITHUB_RETRIES:
+                    raise
+                self.sleep(config.GITHUB_BACKOFF_BASE.total_seconds() * (2**attempt))
+        raise AssertionError("unreachable")  # pragma: no cover
+
     def run(self, ctx: StepContext) -> StepResult:
         article = _require_article(ctx)
         context = _require_context(ctx)
@@ -125,20 +138,22 @@ class FichesStep:
 
         generated_docs = [doc for doc in docs if doc is not None]
         succeeded: list[FicheDoc] = []
-        for doc in generated_docs:
-            path = config.FICHE_MD_PATH_TEMPLATE.format(date=ctx.date, slug=doc.slug)
+        if generated_docs:
+            files = [
+                (
+                    config.FICHE_MD_PATH_TEMPLATE.format(date=ctx.date, slug=doc.slug),
+                    render_fiche(doc).encode("utf-8"),
+                )
+                for doc in generated_docs
+            ]
             try:
-                self.content_repo.put_file(
-                    path, render_fiche(doc).encode("utf-8"), f"feat: add {ctx.date} fiches"
-                )
+                self._commit_with_retry(files, f"feat: add {ctx.date} fiches")
+                succeeded = generated_docs
             except ContentRepoError as exc:
-                # A fiche that cannot be committed is skipped like one that failed to generate:
-                # the article is already published by now, and no fiche is worth failing a run.
-                ctx.log.warning(
-                    "fiche commit failed", extra={"path": path, "error": str(exc)[:300]}
-                )
-                continue
-            succeeded.append(doc)
+                # The article is already published by now, and no fiche is worth failing a
+                # run — but the commit is one atomic batch, so a failure here (after retries)
+                # costs every fiche generated today, not just one.
+                ctx.log.warning("fiches commit failed", extra={"error": str(exc)[:300]})
 
         failed_count = len(cited) - len(succeeded)
         ctx.log.info(

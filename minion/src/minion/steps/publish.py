@@ -3,7 +3,7 @@
 Data bag contract:
 - `imagen` -> reads `article`; writes `image` (ImageArtifact) + `article` with `frontmatter.image`
 - `github` -> reads `article` + `image`; commits the image, the article markdown and the LinkedIn
-              post; writes `commits` + `commit_sha`
+              post as ONE atomic commit; writes `commits` + `commit_sha`
 
 There is no separate persistence step: the commit *is* the publication, and git is the recovery
 mechanism. A run whose commit hard-fails is replayed by date — the Gmail window is a pure
@@ -104,17 +104,17 @@ class ImagenStep:
 
 @dataclass
 class GithubStep:
-    """Step 8: commit the image, the article markdown and the LinkedIn post."""
+    """Step 8: commit the image, the article markdown and the LinkedIn post — one commit."""
 
     content_repo: ContentRepository
     sleep: Callable[[float], None] = time.sleep
     name: StepName = StepName.github
 
-    def _commit_with_retry(self, path: str, content: bytes, message: str) -> str:
-        """Commit one file with exponential-backoff retry; raise after exhausting."""
+    def _commit_with_retry(self, files: list[tuple[str, bytes]], message: str) -> str:
+        """Commit the batch with exponential-backoff retry; raise after exhausting."""
         for attempt in range(config.GITHUB_RETRIES + 1):
             try:
-                return self.content_repo.put_file(path, content, message)
+                return self.content_repo.put_files(files, message)
             except ContentRepoError:
                 if attempt >= config.GITHUB_RETRIES:
                     raise
@@ -127,36 +127,29 @@ class GithubStep:
         if not isinstance(image, ImageArtifact):
             raise RuntimeError("github step missing an ImageArtifact in the data bag")
 
-        message = f"feat: add {ctx.date} article"
-        commits: list[CommitResult] = []
-
-        # Commit the image BEFORE the markdown: an image-only commit is harmless, whereas a post
-        # referencing a missing hero image is visibly broken.
+        # Image before markdown in the tree so a diff reads image-then-post; atomicity (one
+        # commit, all-or-nothing) makes the "image before markdown" ordering concern from the
+        # old file-by-file design moot — a post referencing a missing hero image can no longer
+        # exist even transiently.
+        files: list[tuple[str, bytes]] = []
         if image.available:
-            image_path = config.POST_IMAGE_PATH_TEMPLATE.format(date=ctx.date)
-            commits.append(
-                CommitResult(
-                    path=image_path, sha=self._commit_with_retry(image_path, image.png, message)
-                )
+            files.append((config.POST_IMAGE_PATH_TEMPLATE.format(date=ctx.date), image.png))
+        files.append(
+            (
+                config.POST_MD_PATH_TEMPLATE.format(date=ctx.date),
+                render_post(article).encode("utf-8"),
             )
-
-        md_path = config.POST_MD_PATH_TEMPLATE.format(date=ctx.date)
-        md_sha = self._commit_with_retry(md_path, render_post(article).encode("utf-8"), message)
-        commits.append(CommitResult(path=md_path, sha=md_sha))
-
-        # The LinkedIn post is the day's actual deliverable. Committed last and outside site/:
-        # a failure here must not leave the article unpublished, but losing it silently would
-        # defeat the point of the run, so it is not swallowed either.
-        linkedin_path = config.LINKEDIN_PATH_TEMPLATE.format(date=ctx.date)
+        )
         # The post text alone, no heading: the whole file is meant to be selected and pasted
         # into LinkedIn, and the filename already carries the date.
         linkedin_body = f"{article.linkedin.strip()}\n"
-        commits.append(
-            CommitResult(
-                path=linkedin_path,
-                sha=self._commit_with_retry(linkedin_path, linkedin_body.encode("utf-8"), message),
-            )
+        files.append(
+            (config.LINKEDIN_PATH_TEMPLATE.format(date=ctx.date), linkedin_body.encode("utf-8"))
         )
 
+        message = f"feat: add {ctx.date} article"
+        commit_sha = self._commit_with_retry(files, message)
+        commits = [CommitResult(path=path, sha=commit_sha) for path, _ in files]
+
         ctx.log.info("article committed", extra={"paths": [c.path for c in commits]})
-        return StepResult(payload={"commits": commits, "commit_sha": md_sha})
+        return StepResult(payload={"commits": commits, "commit_sha": commit_sha})

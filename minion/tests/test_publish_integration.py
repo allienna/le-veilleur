@@ -84,7 +84,10 @@ def test_full_fake_pipeline_publishes_article(run_store, lock_store, clock) -> N
     assert final.status is RunStatus.success
     assert len(final.steps) == 9 and all(s.status is RunStatus.success for s in final.steps)
 
-    committed = {c.path: c.content for c in content_repo.calls}
+    # One commit for the whole day's article — no cited sources here, so no second (fiches)
+    # commit follows it.
+    assert len(content_repo.calls) == 1
+    committed = content_repo.calls[0].path_content()
     # The three published artefacts, at the paths the site and the operator read.
     assert committed[IMAGE_PATH] == b"HEROIMG"
     assert b'title: "Daily AI Watch"' in committed[MD_PATH]
@@ -130,7 +133,11 @@ def test_full_fake_pipeline_fiches_cited_sources_and_survives_a_failure(
     # The article publishes normally despite the fiche failure — fiches are never on its
     # critical path.
     assert final.status is RunStatus.success_with_warnings
-    paths = {c.path for c in content_repo.calls}
+    # Two commits: the article's own batch, then one more for every fiche that survived.
+    assert len(content_repo.calls) == 2
+    paths: set[str] = set()
+    for call in content_repo.calls:
+        paths |= set(call.path_content())
     assert MD_PATH in paths and IMAGE_PATH in paths and LINKEDIN_PATH in paths
 
     # Only the two cited sources were ever invoked — the never-referenced urls[2:] were skipped.
@@ -152,7 +159,8 @@ def test_full_fake_pipeline_ships_the_article_when_imagen_gives_up(
     final = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=steps)
 
     assert final.status is RunStatus.success_with_warnings
-    committed = {c.path: c.content for c in content_repo.calls}
+    assert len(content_repo.calls) == 1  # still one commit, just without the image file
+    committed = content_repo.calls[0].path_content()
     assert IMAGE_PATH not in committed  # nothing to commit
     assert MD_PATH in committed and LINKEDIN_PATH in committed
     assert b"image:" not in committed[MD_PATH]  # the site falls back to its placeholder SVG
@@ -174,7 +182,7 @@ def test_real_imagen_and_github_smoke() -> None:
 
     png = GeminiImageGenerator().generate(f"A simple test image. {config.IMAGEN_BRAND_TEMPLATE}")
     assert png[:8] == b"\x89PNG\r\n\x1a\n"  # PNG signature
-    sha = GitHubContentRepository().put_file(
-        "site/public/images/_smoke.png", png, "chore: imagen+github smoke"
+    sha = GitHubContentRepository().put_files(
+        [("site/public/images/_smoke.png", png)], "chore: imagen+github smoke"
     )
     assert isinstance(sha, str) and sha

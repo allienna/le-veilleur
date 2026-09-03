@@ -41,9 +41,12 @@ class PromptRewriter(Protocol):
 
 
 class ContentRepository(Protocol):
-    """Commits a single file to the public Astro repo, idempotent by path (update-with-sha)."""
+    """Commits files to the public Astro repo."""
 
-    def put_file(self, path: str, content: bytes, message: str) -> str:
-        """Create or overwrite `path` with `content` and return the resulting commit SHA.
-        Raises `ContentRepoError` on any non-2xx response or transport failure."""
+    def put_files(self, files: list[tuple[str, bytes]], message: str) -> str:
+        """Create or overwrite every `(path, content)` pair as ONE atomic commit and return the
+        resulting commit SHA. A multi-file publish (the article's markdown, image and LinkedIn
+        draft, or a batch of fiches) must land as a single history entry and trip a single
+        Pages deploy, not one commit per file. Raises `ContentRepoError` on any non-2xx
+        response or transport failure."""
         ...

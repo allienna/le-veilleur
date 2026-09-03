@@ -62,7 +62,11 @@ def _ctx(**data: Any) -> StepContext:
 def _committed(repo: FakeContentRepository, slug: str, date: str = DATE) -> bytes | None:
     """The content committed for `slug` on `date`, or None if no fiche was published."""
     path = f"site/src/content/fiches/{date}-{slug}.md"
-    return next((c.content for c in repo.calls if c.path == path), None)
+    for call in repo.calls:
+        content = call.path_content().get(path)
+        if content is not None:
+            return content
+    return None
 
 
 def test_persists_one_fiche_per_cited_source() -> None:

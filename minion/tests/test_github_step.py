@@ -1,4 +1,4 @@
-"""GithubStep: the three-file commit, idempotent replay, and retry-then-fail."""
+"""GithubStep: the single atomic commit, idempotent replay, and retry-then-fail."""
 
 from __future__ import annotations
 
@@ -50,21 +50,23 @@ def _step(repo: FakeContentRepository) -> GithubStep:
     return GithubStep(content_repo=repo, sleep=lambda _s: None)
 
 
-def test_commits_image_then_markdown_then_linkedin() -> None:
+def test_commits_image_markdown_and_linkedin_as_one_commit() -> None:
     repo = FakeContentRepository()
     result = _step(repo).run(_ctx(**_bag()))
 
-    # Image first, so a published post never references a missing hero image.
-    assert [c.path for c in repo.calls] == [IMAGE_PATH, MD_PATH, LINKEDIN_PATH]
+    # Exactly one commit, carrying all three files — the whole point of the redesign.
+    assert len(repo.calls) == 1
+    files = repo.calls[0].path_content()
+    assert set(files) == {IMAGE_PATH, MD_PATH, LINKEDIN_PATH}
+
     commits = result.payload["commits"]
     assert isinstance(commits, list) and all(isinstance(c, CommitResult) for c in commits)
-    by_path = {c.path: c.sha for c in commits}
-    assert result.payload["commit_sha"] == by_path[MD_PATH]  # the article commit is the run's SHA
+    assert {c.sha for c in commits} == {"sha-1"}  # every file shares the one commit's SHA
+    assert result.payload["commit_sha"] == "sha-1"
 
-    committed = {c.path: c.content for c in repo.calls}
-    assert b'title: "Hello World"' in committed[MD_PATH]
-    assert b"themes: [IA]" in committed[MD_PATH]
-    assert b"le post LinkedIn" in committed[LINKEDIN_PATH]
+    assert b'title: "Hello World"' in files[MD_PATH]
+    assert b"themes: [IA]" in files[MD_PATH]
+    assert b"le post LinkedIn" in files[LINKEDIN_PATH]
 
 
 def test_article_path_is_keyed_by_date_alone() -> None:
@@ -72,11 +74,12 @@ def test_article_path_is_keyed_by_date_alone() -> None:
     the date — so the path must not carry a slug."""
     repo = FakeContentRepository()
     _step(repo).run(_ctx(**_bag()))
-    assert MD_PATH in {c.path for c in repo.calls}
-    assert not any("hello-world" in c.path for c in repo.calls)
+    files = repo.calls[0].path_content()
+    assert MD_PATH in files
+    assert not any("hello-world" in path for path in files)
 
 
-def test_missing_image_skips_the_image_commit_but_still_publishes() -> None:
+def test_missing_image_skips_the_image_file_but_still_publishes() -> None:
     """Imagen gave up: the article and the LinkedIn post must still ship."""
     bag = _bag(png=b"")
     bag["article"] = _article().model_copy(
@@ -84,31 +87,29 @@ def test_missing_image_skips_the_image_commit_but_still_publishes() -> None:
     )
     repo = FakeContentRepository()
     _step(repo).run(_ctx(**bag))
-    assert [c.path for c in repo.calls] == [MD_PATH, LINKEDIN_PATH]
-    committed = {c.path: c.content for c in repo.calls}
-    assert b"image:" not in committed[MD_PATH]
+    files = repo.calls[0].path_content()
+    assert set(files) == {MD_PATH, LINKEDIN_PATH}
+    assert b"image:" not in files[MD_PATH]
 
 
-def test_replay_overwrites_same_paths() -> None:
+def test_replay_is_a_second_commit_with_the_same_paths() -> None:
     repo = FakeContentRepository()
     step = _step(repo)
     step.run(_ctx(**_bag()))
     step.run(_ctx(**_bag()))  # replay
-    # Same three paths committed again — idempotent by date, no new path variants.
-    assert sorted({c.path for c in repo.calls}) == sorted([IMAGE_PATH, MD_PATH, LINKEDIN_PATH])
+    assert len(repo.calls) == 2
+    assert set(repo.calls[0].path_content()) == set(repo.calls[1].path_content())
 
 
 def test_retries_then_succeeds() -> None:
-    repo = FakeContentRepository(fail_times=2)  # first two puts fail, third succeeds
+    repo = FakeContentRepository(fail_times=2)  # first two attempts fail, third succeeds
     result = _step(repo).run(_ctx(**_bag()))
-    # image: calls 1,2 fail then 3 succeeds; md: call 4; linkedin: call 5.
-    assert len(repo.calls) == 5
-    assert result.payload["commit_sha"] == "sha-4"
+    assert len(repo.calls) == 3  # one batch, retried twice
+    assert result.payload["commit_sha"] == "sha-3"
 
 
 def test_retries_exhausted_hard_fails() -> None:
     repo = FakeContentRepository(fail_times=99)  # always fail
     with pytest.raises(ContentRepoError):
         _step(repo).run(_ctx(**_bag()))
-    # The image is attempted GITHUB_RETRIES + 1 times, then raises — no silent partial publish.
     assert len(repo.calls) == config.GITHUB_RETRIES + 1

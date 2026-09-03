@@ -58,11 +58,15 @@ class FakePromptRewriter:
 
 @dataclass
 class PutCall:
-    """One recorded `put_file` invocation."""
+    """One recorded `put_files` invocation — one commit, carrying one or more files."""
 
-    path: str
-    content: bytes
+    files: list[tuple[str, bytes]]
     message: str
+
+    def path_content(self) -> dict[str, bytes]:
+        """The commit's files as a `{path: content}` map, for assertions that don't care about
+        the order files were added to the batch."""
+        return dict(self.files)
 
 
 def _no_put_calls() -> list[PutCall]:
@@ -71,15 +75,15 @@ def _no_put_calls() -> list[PutCall]:
 
 @dataclass
 class FakeContentRepository:
-    """Records `put_file` calls. Optionally raises `ContentRepoError` for the first
-    `fail_times` calls (to exercise the step's retry/backoff), then succeeds with a
+    """Records `put_files` calls, one per commit. Optionally raises `ContentRepoError` for the
+    first `fail_times` calls (to exercise the caller's retry/backoff), then succeeds with a
     deterministic SHA derived from the call index."""
 
     fail_times: int = 0
     calls: list[PutCall] = field(default_factory=_no_put_calls)
 
-    def put_file(self, path: str, content: bytes, message: str) -> str:
-        self.calls.append(PutCall(path=path, content=content, message=message))
+    def put_files(self, files: list[tuple[str, bytes]], message: str) -> str:
+        self.calls.append(PutCall(files=list(files), message=message))
         if len(self.calls) <= self.fail_times:
             raise ContentRepoError(f"fake transient failure ({len(self.calls)}/{self.fail_times})")
         return f"sha-{len(self.calls)}"
