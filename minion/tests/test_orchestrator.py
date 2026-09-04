@@ -128,3 +128,33 @@ def test_returns_the_final_assembled_run_on_each_terminal_path(
         DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=(BoomStep(),)
     )
     assert failed.status is RunStatus.failure and failed.error is not None
+
+
+@dataclass
+class PayloadStep:
+    """Writes a fixed payload into the data bag, to assert `data_out` surfaces it."""
+
+    name: StepName = StepName.gmail
+
+    def run(self, ctx: StepContext) -> StepResult:
+        return StepResult(payload={"marker": "hi"})
+
+
+def test_data_out_is_filled_with_the_final_data_bag(run_store, lock_store, clock) -> None:
+    data_out: dict[str, object] = {}
+    run_pipeline(
+        DATE,
+        run_store=run_store,
+        lock_store=lock_store,
+        clock=clock,
+        steps=(PayloadStep(),),
+        data_out=data_out,
+    )
+    assert data_out == {"marker": "hi"}
+
+
+def test_data_out_omitted_does_not_break_the_call(run_store, lock_store, clock) -> None:
+    # Default (no data_out) — every other test in this file already exercises this path; this
+    # one just documents that omitting it is fine, not an error.
+    final = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock)
+    assert final.status is RunStatus.success

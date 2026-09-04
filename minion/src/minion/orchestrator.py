@@ -32,9 +32,14 @@ def run_pipeline(
     lock_store: LockStore,
     clock: Clock,
     steps: tuple[Step, ...] = STEPS,
+    data_out: dict[str, object] | None = None,
 ) -> Run:
     """Execute the pipeline for `date`. Returns the final (assembled) run, or an in-memory
-    aborted run if the concurrency guard tripped."""
+    aborted run if the concurrency guard tripped.
+
+    When `data_out` is given, it is filled with the final step data bag (e.g. the generated
+    `article`) before returning — the caller's only way to reach that content, since it is
+    otherwise local to this call and never persisted (no datastore)."""
     run_id = new_run_id()
     log = bind(run_id)
     started_at = clock.now()
@@ -127,6 +132,9 @@ def run_pipeline(
         tokens = cast("int | None", data.get("tokens"))
         run_store.finalize_run(date, status, clock.now(), run_error, cost_usd, tokens)
         log.info("run finished", extra={"status": status.value})
+
+        if data_out is not None:
+            data_out.update(data)
 
         final = run_store.get_run(date)
         assert final is not None

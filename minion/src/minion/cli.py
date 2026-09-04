@@ -17,8 +17,10 @@ from minion.clock import Clock, SystemClock
 from minion.fiches.ports import FicheGenerateRunner
 from minion.generate.ports import GenerateRunner
 from minion.ingest.ports import GmailClient, ScraperClient
-from minion.logging import configure_logging
+from minion.logging import bind, configure_logging
 from minion.models import RunStatus
+from minion.notify.message import build_message
+from minion.notify.ports import Notifier, NotifyError
 from minion.orchestrator import run_pipeline
 from minion.publish.ports import ContentRepository, ImageGenerator, PromptRewriter
 from minion.steps import build_pipeline
@@ -55,12 +57,15 @@ def build_clients() -> tuple[
     PromptRewriter,
     ContentRepository,
     FicheGenerateRunner,
+    Notifier,
 ]:
-    """Construct the production ingestion / generation / publishing clients (lazy — needs creds)."""
+    """Construct the production ingestion / generation / publishing / notify clients (lazy —
+    needs creds)."""
     from minion.fiches.runner import ClaudeFicheGenerateRunner
     from minion.generate.runner import ClaudeGenerateRunner
     from minion.ingest.gmail import GmailReaderClient
     from minion.ingest.scraper import LocalExtractorClient
+    from minion.notify.gmail import GmailNotifier
     from minion.publish.github import GitHubContentRepository
     from minion.publish.imagen import ClaudePromptRewriter, GeminiImageGenerator
 
@@ -72,6 +77,7 @@ def build_clients() -> tuple[
         ClaudePromptRewriter(),
         GitHubContentRepository(),
         ClaudeFicheGenerateRunner(),
+        GmailNotifier(),
     )
 
 
@@ -101,6 +107,7 @@ def run(date: str | None) -> None:
         prompt_rewriter,
         content_repo,
         fiche_runner,
+        notifier,
     ) = build_clients()
     steps = build_pipeline(
         gmail_client,
@@ -111,12 +118,23 @@ def run(date: str | None) -> None:
         content_repo,
         fiche_runner,
     )
+    data: dict[str, object] = {}
     result = run_pipeline(
         target,
         run_store=run_store,
         lock_store=lock_store,
         clock=clock,
         steps=steps,
+        data_out=data,
     )
+    if result.status is not RunStatus.aborted:
+        # aborted means the concurrency guard refused to start a run at all — nothing happened,
+        # nothing to report. Every other terminal status is notified, success or not: a notify
+        # failure is logged and swallowed, never allowed to change the pipeline's own outcome.
+        try:
+            subject, body = build_message(result, data)
+            notifier.send(subject=subject, body=body)
+        except NotifyError:
+            bind(result.run_id).exception("notify failed")
     if result.status is RunStatus.failure:
         raise SystemExit(1)

@@ -5,46 +5,30 @@
 # gmail-step tests via FakeGmailClient and this module's own tests via a fake Resource.
 """Production Gmail client — fetch unread newsletters over a date window.
 
-Uses a refresh-token OAuth chain (the `gmail-oauth-refresh-token` secret,
-`gmail.readonly` scope) from a count-only probe to a real body-fetching ingestion client.
-The 24h window is anchored to the run `date` in Europe/Paris for replayable idempotency
-(AD-4): the calendar day `[date 00:00, date+1d 00:00)`, expressed as Unix-epoch
-`after:`/`before:` bounds in the Gmail query.
+Uses the shared refresh-token OAuth chain (`google_oauth.gmail_credentials`, over
+`config.GMAIL_SCOPES`) from a count-only probe to a real body-fetching ingestion client. The 24h
+window is anchored to the run `date` in Europe/Paris for replayable idempotency (AD-4): the
+calendar day `[date 00:00, date+1d 00:00)`, expressed as Unix-epoch `after:`/`before:` bounds in
+the Gmail query.
 
-Read-only: messages are never marked read (that would need the broader gmail.modify scope and
-would break date-keyed replay).
+Read-only *usage*, even though the shared token also carries `gmail.send` (for `notify/gmail.py`):
+this client never marks a message read (that would need the broader gmail.modify scope and would
+break date-keyed replay).
 """
 
 from __future__ import annotations
 
 import base64
-import json
 from datetime import datetime, timedelta
 from email.utils import parseaddr
 from typing import Any
 
-from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
-from minion import secrets
-from minion.config import GMAIL_REFRESH_TOKEN_SECRET, GMAIL_SCOPES, MAX_NEWSLETTERS, PARIS_TZ
+from minion.config import MAX_NEWSLETTERS, PARIS_TZ
+from minion.google_oauth import gmail_credentials
 from minion.ingest.extract import extract_article_urls
 from minion.ingest.models import Newsletter
-
-_DEFAULT_TOKEN_URI = "https://oauth2.googleapis.com/token"
-
-
-def _credentials() -> Credentials:
-    """Build short-lived Gmail credentials from the operator's refresh-token JSON secret."""
-    info: dict[str, Any] = json.loads(secrets.require(GMAIL_REFRESH_TOKEN_SECRET))
-    return Credentials(
-        token=None,
-        refresh_token=info["refresh_token"],
-        client_id=info["client_id"],
-        client_secret=info["client_secret"],
-        token_uri=info.get("token_uri", _DEFAULT_TOKEN_URI),
-        scopes=list(GMAIL_SCOPES),
-    )
 
 
 def _window_query(date: str) -> str:
@@ -121,7 +105,9 @@ class GmailReaderClient:
 
     def _resource(self) -> Any:
         if self._service is None:
-            self._service = build("gmail", "v1", credentials=_credentials(), cache_discovery=False)
+            self._service = build(
+                "gmail", "v1", credentials=gmail_credentials(), cache_discovery=False
+            )
         return self._service
 
     def fetch_unread(self, date: str) -> list[Newsletter]:

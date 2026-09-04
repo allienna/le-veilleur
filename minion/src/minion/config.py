@@ -28,9 +28,13 @@ STEP_ORDER: tuple[StepName, ...] = tuple(StepName)
 # Secret holding the operator's Gmail OAuth refresh-token JSON (authorized_user.json shape).
 GMAIL_REFRESH_TOKEN_SECRET: str = "gmail-oauth-refresh-token"
 
-# Read-only Gmail access — the pipeline never marks messages read, which keeps replay
-# idempotent and avoids the broader gmail.modify scope.
-GMAIL_SCOPES: tuple[str, ...] = ("https://www.googleapis.com/auth/gmail.readonly",)
+# Read-only for ingestion (the pipeline never marks messages read, which keeps replay
+# idempotent and avoids the broader gmail.modify scope) plus send, for the post-run notify
+# email — one refresh token, both scopes.
+GMAIL_SCOPES: tuple[str, ...] = (
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+)
 
 # Sender denylist. Empty, maintained manually. An entry matches a newsletter
 # when it equals the full From address (case-insensitive) or is an "@domain" suffix of it.
@@ -207,3 +211,20 @@ FICHE_MAX_CONCURRENCY: int = 3
 # not a summary, so long sources legitimately run long. 1500 would have rejected 8% of
 # the existing corpus. This is a runaway-output guard, not an editorial limit.
 MAX_FICHE_WORDS: int = 6000
+
+# --- Notify: post-run email ---------------------------------------------------------------
+# Not a pipeline step (STEP_ORDER halts on the first failure/terminal status, which is exactly
+# the case this must still report on). A post-run hook in `cli.py` instead, sent every run
+# regardless of outcome.
+
+# The public site — site/astro.config.mjs `site` + `base` — and the article route,
+# site/src/pages/articles/[date].astro (slug = the date-keyed filename).
+SITE_BASE_URL: str = "https://allienna.github.io/le-veilleur"
+ARTICLE_URL_TEMPLATE: str = f"{SITE_BASE_URL}/articles/{{date}}/"
+
+# Fixed, not a secret: this is a solo personal project, and the address isn't sensitive.
+NOTIFY_TO_ADDRESS: str = "aurelien.allienne@gmail.com"
+
+# Where the Job runs (infra/job.tf) — used only to build a Cloud Logging console URL, no API call.
+CLOUD_RUN_REGION: str = "europe-west1"
+CLOUD_RUN_JOB_NAME: str = "minion"

@@ -114,17 +114,24 @@ expired or revoked`. Google revokes refresh tokens on password change, scope cha
 inactivity, or manual revocation at <https://myaccount.google.com/permissions>.
 
 You re-consent locally to mint a fresh `authorized_user.json`, then push it as a new secret version.
-This reuses the **same OAuth client** seeded for the spike (`gmail.readonly` scope, Desktop app).
+This reuses the **same OAuth client** seeded for the spike (Desktop app).
+
+> **One-time action required for the post-run notify email** (`minion/src/minion/notify/`): the
+> secret currently in place only carries `gmail.readonly`. `config.GMAIL_SCOPES` now also
+> requests `gmail.send` — until you run the consent flow below once with **both** scopes, the
+> `notify` step's Gmail send will fail (`insufficient_scope` or similar) even though ingestion
+> keeps working fine on the old token.
 
 ```bash
 # 1. Re-run the local consent flow against the existing OAuth client JSON (the Desktop-app
 #    client downloaded from console.cloud.google.com/apis/credentials). A browser opens; sign
-#    in as the operator and approve gmail.readonly. The fresh refresh token prints as JSON.
-uv --project minion run python -c "
+#    in as the operator and approve both scopes below. The fresh refresh token prints as JSON.
+uv run --with google-auth-oauthlib --project minion python -c "
 from google_auth_oauthlib.flow import InstalledAppFlow
 flow = InstalledAppFlow.from_client_secrets_file(
     'PATH/TO/DOWNLOADED_CLIENT.json',
-    ['https://www.googleapis.com/auth/gmail.readonly'])
+    ['https://www.googleapis.com/auth/gmail.readonly',
+     'https://www.googleapis.com/auth/gmail.send'])
 creds = flow.run_local_server(port=0)
 print(creds.to_json())
 " > authorized_user.json
