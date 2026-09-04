@@ -15,6 +15,7 @@ GitHub Pages; nothing here is meant to require a human on a good day.
 | `site/` | Astro 5 + Tailwind | `npm` (in `site/`) | The public site. Deployed to Pages on any push touching `site/**`. |
 | `minion/` | Python 3.12 + Pydantic | `uv` (in `minion/`) | The pipeline. A standalone uv project, not a workspace member. |
 | `infra/` | Terraform | — | Cloud Run Job, Scheduler, IAM, budget kill-switch. |
+| `functions/` | Python | — | `budget-killswitch`: the Cloud Function `infra/killswitch.tf` deploys. |
 | `scripts/` | bash + Python | root `uv` | Deploy helpers; two local on-demand tools. |
 | `linkedin/` | markdown | — | One LinkedIn draft per day, committed by the pipeline. |
 
@@ -26,6 +27,7 @@ everything: run `just` for the list. Prefer `just` recipes over calling scripts 
 ```bash
 just check          # ruff + ruff format + pyright + pytest on minion/ — the same gates CI runs
 just test           # pytest only
+just test-integration  # pytest -m integration — hits real Claude/Imagen/GitHub; needs the secrets
 just build          # astro build — the real content gate (zod validates every frontmatter)
 just run [DATE]     # the whole pipeline locally; needs the four secrets in the env
 just image          # build the amd64 image and smoke it
