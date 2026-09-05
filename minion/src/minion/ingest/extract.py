@@ -92,12 +92,16 @@ def _is_article_url(url: str, sender_domain: str | None) -> bool:
 def extract_article_urls(body: str, *, sender_domain: str | None = None) -> list[str]:
     """Extract candidate article URLs from a newsletter body (HTML or plain text).
 
-    Collects `<a href>` links and bare `http(s)` URLs in the text, filters out clearly
-    non-article links, and deduplicates preserving first-seen order.
+    Collects `<a href>` links; the bare `http(s)`-in-text regex is a *fallback* for plain-text
+    bodies only (no anchors to parse). Running it against HTML unconditionally was pulling in
+    every URL from the raw markup — `<link>`/`@font-face`/CSS `url()` noise never meant to be
+    followed — not just the real `<a href>` article links (2026-09-05 burn-in: a third of a
+    day's scrape failures were `fonts.gstatic.com` and similar markup-only hosts that showed up
+    only because HTML bodies always have *some* bare URL sitting outside an anchor tag).
     """
     parser = _AnchorHrefParser()
     parser.feed(body)
-    candidates = [*parser.hrefs, *_URL_RE.findall(body)]
+    candidates = list(parser.hrefs) if parser.hrefs else _URL_RE.findall(body)
 
     seen: set[str] = set()
     result: list[str] = []
