@@ -11,12 +11,14 @@ Data bag contract between the steps:
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from email.utils import parseaddr
 from typing import cast
+from urllib.parse import urlparse
 
 from minion import config
-from minion.ingest.models import SourceSet
+from minion.ingest.models import SourceOutcome, SourceSet
 from minion.ingest.ports import GmailClient, ScraperClient
 from minion.models import RunStatus, StepName
 from minion.steps.base import StepContext, StepResult
@@ -98,6 +100,20 @@ class ScrapeStep:
                 "total": sources.total,
             },
         )
+        failed = [s for s in sources.sources if s.outcome is SourceOutcome.failed]
+        if failed:
+            # Diagnoses *why* the run's failed bucket is large — one bad host vs. a broad
+            # failure mode (e.g. every source getting non_html_content_type) look identical in
+            # the aggregate counts above but need very different fixes.
+            by_reason = Counter(s.failure_reason for s in failed)
+            by_host = Counter(urlparse(s.url).netloc for s in failed)
+            ctx.log.info(
+                "scrape failures breakdown",
+                extra={
+                    "by_reason": dict(by_reason.most_common()),
+                    "by_host": dict(by_host.most_common(10)),
+                },
+            )
         return StepResult(payload={"sources": sources})
 
 

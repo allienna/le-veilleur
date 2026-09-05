@@ -103,35 +103,57 @@ class LocalExtractorClient:
         if wait > 0:
             self._sleep(wait)
 
-    def _try_once(self, url: str) -> ScrapedSource | None:
-        """One fetch+extract attempt. Returns a terminal `ScrapedSource`, or None to retry."""
+    def _try_once(self, url: str) -> tuple[ScrapedSource | None, str | None]:
+        """One fetch+extract attempt. Returns `(terminal_source, None)` to stop, or
+        `(None, retry_reason)` to retry — `retry_reason` labels the transient cause so a final
+        exhausted-retries failure can still report what it was retrying against."""
         self._throttle_host(url)
         try:
             resp = self._client.get(url)
-        except httpx.TransportError:
-            return None  # transient → retryable
+        except httpx.TransportError as exc:
+            return None, f"transport_error:{type(exc).__name__}"
         if resp.status_code in _RETRY_STATUS:
-            return None
-        if not resp.is_success or not _looks_like_html(resp):
-            return ScrapedSource(url=url, outcome=SourceOutcome.failed)
+            return None, f"http_{resp.status_code}"
+        if not resp.is_success:
+            failed = ScrapedSource(
+                url=url, outcome=SourceOutcome.failed, failure_reason=f"http_{resp.status_code}"
+            )
+            return failed, None
+        if not _looks_like_html(resp):
+            failed = ScrapedSource(
+                url=url, outcome=SourceOutcome.failed, failure_reason="non_html_content_type"
+            )
+            return failed, None
         html = resp.text
         if _is_paywalled(html):
-            return ScrapedSource(url=url, outcome=SourceOutcome.paywalled)
+            return ScrapedSource(url=url, outcome=SourceOutcome.paywalled), None
         markdown = _extract_markdown(html)
-        if not markdown:
-            return ScrapedSource(url=url, outcome=SourceOutcome.failed)  # nothing extractable
-        return ScrapedSource(
-            url=url, outcome=SourceOutcome.ok, title=_extract_title(html), markdown=markdown
+        if not markdown:  # nothing extractable
+            failed = ScrapedSource(
+                url=url, outcome=SourceOutcome.failed, failure_reason="empty_extraction"
+            )
+            return failed, None
+        return (
+            ScrapedSource(
+                url=url, outcome=SourceOutcome.ok, title=_extract_title(html), markdown=markdown
+            ),
+            None,
         )
 
     def _scrape_one(self, url: str) -> ScrapedSource:
+        last_retry_reason: str | None = None
         for attempt in range(SCRAPE_MAX_RETRIES + 1):
-            result = self._try_once(url)
+            result, retry_reason = self._try_once(url)
             if result is not None:
                 return result
+            last_retry_reason = retry_reason
             if attempt < SCRAPE_MAX_RETRIES:
                 self._sleep(SCRAPE_BACKOFF_BASE.total_seconds() * (2**attempt))
-        return ScrapedSource(url=url, outcome=SourceOutcome.failed)  # retries exhausted
+        return ScrapedSource(
+            url=url,
+            outcome=SourceOutcome.failed,
+            failure_reason=f"{last_retry_reason}_retries_exhausted",
+        )
 
     def scrape(self, urls: list[str]) -> list[ScrapedSource]:
         if not urls:
@@ -148,5 +170,10 @@ class LocalExtractorClient:
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
         for url in urls:
-            results.setdefault(url, ScrapedSource(url=url, outcome=SourceOutcome.failed))
+            results.setdefault(
+                url,
+                ScrapedSource(
+                    url=url, outcome=SourceOutcome.failed, failure_reason="deadline_exceeded"
+                ),
+            )
         return [results[url] for url in urls]

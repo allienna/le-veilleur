@@ -72,6 +72,7 @@ def test_empty_extraction_marks_failed() -> None:
 
     [src] = _make_client(handler).scrape(["https://example.com/spa"])
     assert src.outcome is SourceOutcome.failed
+    assert src.failure_reason == "empty_extraction"
 
 
 def test_non_html_content_type_marks_failed() -> None:
@@ -80,6 +81,7 @@ def test_non_html_content_type_marks_failed() -> None:
 
     [src] = _make_client(handler).scrape(["https://example.com/api"])
     assert src.outcome is SourceOutcome.failed
+    assert src.failure_reason == "non_html_content_type"
 
 
 def test_429_then_success_is_retried() -> None:
@@ -102,6 +104,7 @@ def test_persistent_5xx_marks_failed() -> None:
 
     [src] = _make_client(handler).scrape(["https://example.com/c"])
     assert src.outcome is SourceOutcome.failed
+    assert src.failure_reason == "http_503_retries_exhausted"
 
 
 def test_non_retryable_4xx_marks_failed() -> None:
@@ -110,6 +113,7 @@ def test_non_retryable_4xx_marks_failed() -> None:
 
     [src] = _make_client(handler).scrape(["https://example.com/d"])
     assert src.outcome is SourceOutcome.failed
+    assert src.failure_reason == "http_404"
 
 
 def test_transport_error_is_retried_then_failed() -> None:
@@ -122,6 +126,7 @@ def test_transport_error_is_retried_then_failed() -> None:
     [src] = _make_client(handler).scrape(["https://example.com/e"])
     assert src.outcome is SourceOutcome.failed
     assert calls["n"] == 3  # initial + SCRAPE_MAX_RETRIES (2)
+    assert src.failure_reason == "transport_error:ConnectError_retries_exhausted"
 
 
 def test_preserves_input_order() -> None:

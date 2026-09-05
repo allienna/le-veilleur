@@ -38,6 +38,8 @@ class ScrapedSource(BaseModel):
 
     `markdown` and `title` are populated only when `outcome is SourceOutcome.ok`; a
     `paywalled` or `failed` source carries the outcome and no usable content.
+    `failure_reason` is set only when `outcome is SourceOutcome.failed`, for diagnosing which
+    failure mode (bad status, non-HTML, empty extraction, deadline) dominates a given run.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -46,6 +48,7 @@ class ScrapedSource(BaseModel):
     outcome: SourceOutcome
     title: str | None = None
     markdown: str | None = None
+    failure_reason: str | None = None
 
 
 class SourceSet(BaseModel):
