@@ -14,7 +14,7 @@ uv run python -m minion run --date 2026-09-01   # defaults to today
 |---|---|---|
 | 1 | `gmail` | Pull newsletters from the dedicated inbox over the 24h ending at 06:00 Paris of the run date. Extracts and de-duplicates candidate links. |
 | 2 | `scrape` | Fetch each URL from its origin (`httpx`, browser-like UA) and extract main content to Markdown with `trafilatura`, in-process. Detects paywalls from the raw HTML. |
-| 3 | `validate_input` | Empty mailbox → graceful `skipped/no_sources`. Otherwise require ≥5 sources OK **and** ≥50% of candidates. |
+| 3 | `validate_input` | Empty mailbox → graceful `skipped/no_sources`. Otherwise require ≥5 sources OK **and** ≥50% of candidates — or ≥30 sources OK regardless of the fraction. |
 | 4 | `assemble` | De-duplicate by title (syndication guard) and trim to the input-token budget. |
 | 5 | `generate` | `claude -p "/generate <context.json>"` → one JSON artefact: theme, frontmatter, body, LinkedIn post, image prompt. |
 | 6 | `validate_output` | The deterministic gate of record: length caps, frontmatter completeness, and the copyright rules. Failures are fed back and `/generate` is re-invoked. |

@@ -6,6 +6,7 @@ from datetime import datetime
 
 from minion.config import PARIS_TZ
 from minion.generate.models import ArticleFrontmatter, GeneratedArticle
+from minion.ingest.models import ScrapedSource, SourceOutcome, SourceSet
 from minion.models import Run, RunStatus, RunStep, StepName
 from minion.notify.message import build_message
 from minion.publish.models import ImageArtifact
@@ -153,6 +154,31 @@ def test_linkedin_text_is_html_escaped() -> None:
     _subject, body = build_message(run, {"article": article})
     assert "<script>alert(1)</script>" not in body
     assert "&lt;script&gt;" in body
+
+
+def test_shows_source_count_when_sources_present() -> None:
+    sources = SourceSet(
+        sources=[
+            *(ScrapedSource(url=f"https://a.io/{i}", outcome=SourceOutcome.ok) for i in range(40)),
+            *(
+                ScrapedSource(url=f"https://b.io/{i}", outcome=SourceOutcome.paywalled)
+                for i in range(17)
+            ),
+            *(
+                ScrapedSource(url=f"https://c.io/{i}", outcome=SourceOutcome.failed)
+                for i in range(43)
+            ),
+        ]
+    )
+    run = _run(RunStatus.success, steps=[_github_success()])
+    _subject, body = build_message(run, {"article": _ARTICLE, "sources": sources})
+    assert "Sources : 40 OK / 100 (17 payantes, 43 échouées)" in body
+
+
+def test_no_source_count_when_sources_absent() -> None:
+    run = _run(RunStatus.failure, error="gmail: boom")
+    _subject, body = build_message(run, {})
+    assert "Sources :" not in body
 
 
 def test_share_linkedin_button_only_when_published() -> None:

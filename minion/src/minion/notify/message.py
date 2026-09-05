@@ -16,6 +16,7 @@ from urllib.parse import quote
 from minion import secrets
 from minion.config import ARTICLE_URL_TEMPLATE, CLOUD_RUN_JOB_NAME, CLOUD_RUN_REGION
 from minion.generate.models import GeneratedArticle
+from minion.ingest.models import SourceSet
 from minion.models import Run, RunStatus, StepName
 from minion.publish.models import ImageArtifact
 
@@ -176,7 +177,7 @@ def _status_section_html(run: Run) -> str:
       </td></tr>"""
 
 
-def _metrics_html(run: Run) -> str:
+def _metrics_html(run: Run, data: Mapping[str, object]) -> str:
     parts: list[str] = []
     if run.cost_usd is not None or run.tokens is not None:
         cost = f"{run.cost_usd:.2f} $" if run.cost_usd is not None else "?"
@@ -185,6 +186,12 @@ def _metrics_html(run: Run) -> str:
     duration = _duration(run)
     if duration is not None:
         parts.append(f"Durée : {duration}")
+    sources = data.get("sources")
+    if isinstance(sources, SourceSet):
+        parts.append(
+            f"Sources : {sources.ok_count} OK / {sources.total} "
+            f"({sources.paywalled_count} payantes, {sources.failed_count} échouées)"
+        )
     if not parts:
         return ""
     return f"""
@@ -223,7 +230,7 @@ def build_message(run: Run, data: Mapping[str, object]) -> tuple[str, str]:
           {_hero_image_html(data)}
           {_article_section_html(run, article)}
           {_linkedin_section_html(run, article)}
-          {_metrics_html(run)}
+          {_metrics_html(run, data)}
           <tr><td style="padding:24px 32px 32px;">
             <a href="{_logs_url(run)}" style="font-size:12px;color:#94a3b8;">Voir les logs</a>
           </td></tr>

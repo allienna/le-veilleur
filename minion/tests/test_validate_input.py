@@ -1,4 +1,5 @@
-"""Tests for ValidateInputStep — the skip path and the ≥50%-AND-≥5 gate."""
+"""Tests for ValidateInputStep — the skip path, the ≥50%-AND-≥5 gate, and the
+≥MIN_SOURCES_OK_UNCONDITIONAL volume override."""
 
 from __future__ import annotations
 
@@ -76,3 +77,17 @@ def test_failure_message_breaks_down_paywalled_vs_failed() -> None:
     # The breakdown tells a thin-news day (paywalled) apart from scrape trouble (failed).
     with pytest.raises(InsufficientSourcesError, match=r"4/12.*1 paywalled, 7 failed"):
         ValidateInputStep().run(_ctx(_source_set(ok=4, not_ok=7, paywalled=1)))
+
+
+def test_volume_override_passes_despite_low_fraction() -> None:
+    # 35 ok of 105 → fraction ≈0.33 (<0.5), but ok ≥ MIN_SOURCES_OK_UNCONDITIONAL (30): passes
+    # anyway (2026-09-05 burn-in: tracking-redirect 403s tanked the fraction on a day with
+    # plenty of real, usable sources).
+    result = ValidateInputStep().run(_ctx(_source_set(ok=35, not_ok=70)))
+    assert result.terminal_status is None
+
+
+def test_just_under_volume_override_still_fails_on_low_fraction() -> None:
+    # 29 ok of 105 → fraction ≈0.28 (<0.5) and ok just below the override threshold (30): fails.
+    with pytest.raises(InsufficientSourcesError, match="29/105"):
+        ValidateInputStep().run(_ctx(_source_set(ok=29, not_ok=76)))

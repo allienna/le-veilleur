@@ -86,6 +86,13 @@ SCRAPE_DEADLINE: timedelta = timedelta(minutes=4)
 MIN_SOURCES_OK: int = 5
 MIN_SOURCES_FRACTION: float = 0.5
 
+# Escape hatch: enough OK sources on their own justify publishing even when the fraction gate
+# fails — e.g. a tracking-redirect domain (SendGrid, Beehiiv) blocking a chunk of candidates
+# drags the ratio down without saying anything about the sources that *did* come through clean
+# (2026-09-05 burn-in: 40/100 ok, 43 failed almost entirely from two tracking-redirect hosts —
+# plenty of real material, gated out anyway).
+MIN_SOURCES_OK_UNCONDITIONAL: int = 30
+
 # --- Generation / `/generate` ------------------------------------------------------------
 
 # Secret holding the Claude Code OAuth token (`claude setup-token`). The generate subprocess

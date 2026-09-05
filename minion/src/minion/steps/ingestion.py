@@ -119,7 +119,8 @@ class ScrapeStep:
 
 @dataclass
 class ValidateInputStep:
-    """Step 3: the quality gate. Skip an empty mailbox; gate on the ≥50%-AND-≥5 threshold."""
+    """Step 3: the quality gate. Skip an empty mailbox; gate on the ≥50%-AND-≥5 threshold, or on
+    ≥MIN_SOURCES_OK_UNCONDITIONAL OK sources regardless of fraction."""
 
     name: StepName = StepName.validate_input
 
@@ -133,13 +134,18 @@ class ValidateInputStep:
 
         ok, total = sources.ok_count, sources.total
         fraction = ok / total
-        if ok < config.MIN_SOURCES_OK or fraction < config.MIN_SOURCES_FRACTION:
+        meets_fraction_gate = (
+            ok >= config.MIN_SOURCES_OK and fraction >= config.MIN_SOURCES_FRACTION
+        )
+        meets_volume_override = ok >= config.MIN_SOURCES_OK_UNCONDITIONAL
+        if not (meets_fraction_gate or meets_volume_override):
             # Include the paywalled/failed split so a thin-news day (mostly paywalled) is
             # distinguishable from scrape trouble (mostly failed — fetch errors / dead links).
             raise InsufficientSourcesError(
                 f"insufficient_sources: {ok}/{total} ok "
                 f"({sources.paywalled_count} paywalled, {sources.failed_count} failed; "
-                f"need ≥{config.MIN_SOURCES_OK} and ≥{config.MIN_SOURCES_FRACTION:.0%})"
+                f"need ≥{config.MIN_SOURCES_OK} and ≥{config.MIN_SOURCES_FRACTION:.0%}, "
+                f"or ≥{config.MIN_SOURCES_OK_UNCONDITIONAL} regardless of fraction)"
             )
 
         ctx.log.info(
@@ -149,6 +155,7 @@ class ValidateInputStep:
                 "paywalled": sources.paywalled_count,
                 "failed": sources.failed_count,
                 "total": total,
+                "via_volume_override": not meets_fraction_gate,
             },
         )
         return StepResult()
