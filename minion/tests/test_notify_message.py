@@ -8,6 +8,7 @@ from minion.config import PARIS_TZ
 from minion.generate.models import ArticleFrontmatter, GeneratedArticle
 from minion.models import Run, RunStatus, RunStep, StepName
 from minion.notify.message import build_message
+from minion.publish.models import ImageArtifact
 
 DATE = "2026-06-01"
 T0 = datetime(2026, 6, 1, 6, 0, tzinfo=PARIS_TZ)
@@ -113,3 +114,61 @@ def test_skipped_run_omits_cost_and_duration_when_absent() -> None:
     assert "SKIPPED" in subject
     assert "Coût" not in body
     assert "Durée" in body  # started/ended are still set on a graceful terminal exit
+
+
+def test_body_is_a_complete_html_document() -> None:
+    run = _run(RunStatus.success, steps=[_github_success()])
+    _subject, body = build_message(run, {"article": _ARTICLE})
+    assert body.startswith("<!doctype html>")
+    assert "<html" in body and "</html>" in body
+
+
+def test_hero_image_embedded_as_data_uri_when_available() -> None:
+    run = _run(RunStatus.success, steps=[_github_success()])
+    image = ImageArtifact(filename="2026-06-01.png", png=b"\x89PNGfakebytes")
+    _subject, body = build_message(run, {"article": _ARTICLE, "image": image})
+    import base64
+
+    encoded = base64.b64encode(b"\x89PNGfakebytes").decode("ascii")
+    assert f"data:image/png;base64,{encoded}" in body
+
+
+def test_no_hero_image_section_when_unavailable() -> None:
+    run = _run(RunStatus.success, steps=[_github_success()])
+    image = ImageArtifact(filename="2026-06-01.png", png=b"")  # imagen gave up
+    _subject, body = build_message(run, {"article": _ARTICLE, "image": image})
+    assert "data:image/png;base64," not in body
+
+
+def test_linkedin_text_is_html_escaped() -> None:
+    dangerous = ArticleFrontmatter(title="T", date=DATE, themes=["IA"])
+    article = GeneratedArticle(
+        theme="ai",
+        frontmatter=dangerous,
+        body="body",
+        linkedin="<script>alert(1)</script> & <b>bold</b>",
+        image_prompt="prompt",
+    )
+    run = _run(RunStatus.success, steps=[_github_success()])
+    _subject, body = build_message(run, {"article": article})
+    assert "<script>alert(1)</script>" not in body
+    assert "&lt;script&gt;" in body
+
+
+def test_share_linkedin_button_only_when_published() -> None:
+    published = _run(RunStatus.success, steps=[_github_success()])
+    _subject, body = build_message(published, {"article": _ARTICLE})
+    assert "linkedin.com/sharing/share-offsite" in body
+
+    steps = [
+        RunStep(
+            name=StepName.github,
+            status=RunStatus.failure,
+            started_at=T0,
+            ended_at=T1,
+            error="commit failed",
+        )
+    ]
+    not_published = _run(RunStatus.failure, steps=steps, error="github: commit failed")
+    _subject, body = build_message(not_published, {"article": _ARTICLE})
+    assert "linkedin.com/sharing/share-offsite" not in body

@@ -40,7 +40,7 @@ class GmailNotifier:
         return self._service
 
     def send(self, *, subject: str, body: str) -> None:
-        message = MIMEText(body)
+        message = MIMEText(body, "html")
         message["to"] = config.NOTIFY_TO_ADDRESS
         message["subject"] = subject
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")

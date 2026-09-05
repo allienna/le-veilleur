@@ -71,6 +71,7 @@ def test_send_encodes_mime_and_calls_users_messages_send() -> None:
     subject_bytes, encoding = decode_header(parsed["subject"])[0]
     subject = subject_bytes.decode(encoding or "ascii")
     assert subject == "Le Veilleur — 2026-06-01 — OK"
+    assert parsed.get_content_type() == "text/html"
     assert parsed.get_payload(decode=True).decode("utf-8").strip() == "hello\nworld"
 
 

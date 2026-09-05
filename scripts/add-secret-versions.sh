@@ -37,9 +37,10 @@ Provision an authorized-user JSON blob with these fields:
     "token_uri":      "https://oauth2.googleapis.com/token"
   }
 
-You need a Google Cloud OAuth 2.0 Client of type "Desktop app" (or "Web") with the
-https://www.googleapis.com/auth/gmail.readonly scope authorized to your operator
-Gmail account.
+You need a Google Cloud OAuth 2.0 Client of type "Desktop app" (or "Web") with both the
+https://www.googleapis.com/auth/gmail.readonly and https://www.googleapis.com/auth/gmail.send
+scopes authorized to your operator Gmail account (config.GMAIL_SCOPES — ingestion reads,
+notify/gmail.py sends the post-run email, one token covers both).
 
   1. Create the OAuth client (one-time, if you do not already have one):
        https://console.cloud.google.com/apis/credentials?project=veilleur-app
@@ -47,12 +48,13 @@ Gmail account.
      Download the JSON; keep client_id + client_secret.
 
   2. Run a one-shot OAuth helper to obtain the refresh_token, e.g. via
-     google_auth_oauthlib:
-       uv --project minion run python -c "
+     google_auth_oauthlib (installed ad hoc via --with; it is not a project dependency):
+       uv run --with google-auth-oauthlib --project minion python -c "
        from google_auth_oauthlib.flow import InstalledAppFlow
        flow = InstalledAppFlow.from_client_secrets_file(
            'PATH/TO/DOWNLOADED_CLIENT.json',
-           ['https://www.googleapis.com/auth/gmail.readonly'])
+           ['https://www.googleapis.com/auth/gmail.readonly',
+            'https://www.googleapis.com/auth/gmail.send'])
        creds = flow.run_local_server(port=0)
        print(creds.to_json())
        "

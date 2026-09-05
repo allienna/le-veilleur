@@ -14,5 +14,5 @@ class Notifier(Protocol):
     """Sends the post-run notification email."""
 
     def send(self, *, subject: str, body: str) -> None:
-        """Send one plain-text email. Raises `NotifyError` on failure."""
+        """Send one email; `body` is a complete HTML document. Raises `NotifyError` on failure."""
         ...
