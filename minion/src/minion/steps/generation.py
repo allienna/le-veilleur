@@ -32,6 +32,7 @@ from minion.generate.models import (
 from minion.generate.ports import GenerateRunner, GenerateTransportError
 from minion.generate.validate import validate_article
 from minion.ingest.models import SourceSet
+from minion.logging import BoundLogger
 from minion.models import StepName
 from minion.steps.base import StepContext, StepResult
 
@@ -99,14 +100,23 @@ class GenerateStep:
     sleep: Callable[[float], None] = time.sleep
     name: StepName = StepName.generate
 
-    def _invoke(self, context: AssembledContext, feedback: list[str]) -> GenerateInvocation:
+    def _invoke(
+        self, context: AssembledContext, feedback: list[str], log: BoundLogger
+    ) -> GenerateInvocation:
         """One logical invocation with transport-retry + exponential backoff."""
         for attempt in range(config.CLAUDE_TRANSPORT_RETRIES + 1):
             try:
                 return self.runner.invoke(context, feedback)
-            except GenerateTransportError:
+            except GenerateTransportError as exc:
                 if attempt >= config.CLAUDE_TRANSPORT_RETRIES:
                     raise
+                # Otherwise invisible: a timeout/transport hiccup here eats most of its retry
+                # budget silently (2026-09-05 burn-in: a single retried call ran ~16 minutes
+                # against a normal ~3-5, starving the steps after it of the run's 20-minute
+                # ceiling — nothing in the logs explained why until this line existed).
+                log.warning(
+                    "generate transport retry", extra={"attempt": attempt, "error": str(exc)}
+                )
                 self.sleep(config.CLAUDE_BACKOFF_BASE.total_seconds() * (2**attempt))
         raise AssertionError("unreachable")  # pragma: no cover
 
@@ -121,7 +131,7 @@ class GenerateStep:
         tokens: int | None = None
 
         for attempt in range(config.MAX_GENERATE_RETRIES + 1):
-            invocation = self._invoke(context, feedback)
+            invocation = self._invoke(context, feedback, ctx.log)
             if invocation.cost_usd is not None:
                 cost_usd = (cost_usd or 0.0) + invocation.cost_usd
             if invocation.tokens is not None:
