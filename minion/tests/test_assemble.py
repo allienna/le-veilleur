@@ -55,6 +55,33 @@ def test_empty_source_set_yields_empty_context() -> None:
     assert assemble_context(SourceSet(sources=[]), log=LOG).sources == []
 
 
+def test_orders_by_weight_descending_stable_on_ties() -> None:
+    source_set = SourceSet(sources=[_ok(0), _ok(1), _ok(2)])
+    context = assemble_context(
+        source_set, weights={"https://s.io/0": 0.1, "https://s.io/2": 5.0}, log=LOG
+    )
+    # 2 (weight 5.0) first, then 1 (default 1.0, tie broken by original order), then 0 (0.1).
+    assert [s.url for s in context.sources] == [
+        "https://s.io/2",
+        "https://s.io/1",
+        "https://s.io/0",
+    ]
+
+
+def test_low_weight_source_dropped_before_high_weight_under_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "MAX_GENERATE_INPUT_TOKENS", 30)
+    big = "x" * 40
+    source_set = SourceSet(sources=[_ok(i, markdown=big) for i in range(3)])
+    context = assemble_context(
+        source_set, weights={"https://s.io/0": 0.1, "https://s.io/1": 0.1}, log=LOG
+    )
+    urls = [s.url for s in context.sources]
+    assert "https://s.io/2" in urls
+    assert "https://s.io/0" not in urls or "https://s.io/1" not in urls
+
+
 def test_dedupes_by_title_keeping_first_seen() -> None:
     # Same article syndicated across two newsletter editions with distinct tracking URLs but an
     # identical title — only the first-seen copy should survive (2026-07-31 burn-in).

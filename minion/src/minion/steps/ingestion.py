@@ -4,7 +4,8 @@ The first three pipeline slots. Each step depends only on an injected client Pro
 (`GmailClient` / `ScraperClient`) so the pipeline runs hermetically under fakes.
 
 Data bag contract between the steps:
-- `gmail`          → writes `newsletters: list[Newsletter]`, `candidate_urls: list[str]`
+- `gmail`          → writes `newsletters: list[Newsletter]`, `candidate_urls: list[str]`,
+                     `source_weights: dict[str, float]`
 - `scrape`         → reads `candidate_urls`, writes `sources: SourceSet`
 - `validate_input` → reads `newsletters` + `sources`, gates the run
 """
@@ -49,6 +50,19 @@ def _is_denied(sender: str, denylist: frozenset[str]) -> bool:
     return False
 
 
+def _weight_for(sender: str, weights: dict[str, float]) -> float:
+    """Configured weight for `sender` (exact address, then `@domain` suffix), default 1.0."""
+    address = _sender_address(sender)
+    if not address:
+        return 1.0
+    if address in weights:
+        return weights[address]
+    for key, weight in weights.items():
+        if key.startswith("@") and address.endswith(key.lower()):
+            return weight
+    return 1.0
+
+
 @dataclass
 class GmailStep:
     """Step 1: fetch unread newsletters, apply the denylist, extract+dedupe+cap article URLs."""
@@ -62,22 +76,30 @@ class GmailStep:
 
         seen: set[str] = set()
         urls: list[str] = []
+        source_weights: dict[str, float] = {}
         for newsletter in kept:
+            weight = _weight_for(newsletter.sender, config.NEWSLETTER_WEIGHTS)
             for url in newsletter.candidate_urls:
                 if url not in seen:
                     seen.add(url)
                     urls.append(url)
+                    source_weights[url] = weight
 
         total = len(urls)
         if total > config.MAX_URLS:
             ctx.log.info("url cap reached", extra={"total": total, "capped_to": config.MAX_URLS})
             urls = urls[: config.MAX_URLS]
+            source_weights = {url: source_weights[url] for url in urls}
 
         ctx.log.info(
             "gmail fetched",
             extra={"fetched": len(newsletters), "kept": len(kept), "urls": len(urls)},
         )
-        payload: dict[str, object] = {"newsletters": kept, "candidate_urls": urls}
+        payload: dict[str, object] = {
+            "newsletters": kept,
+            "candidate_urls": urls,
+            "source_weights": source_weights,
+        }
         return StepResult(payload=payload)
 
 

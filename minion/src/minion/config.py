@@ -40,6 +40,16 @@ GMAIL_SCOPES: tuple[str, ...] = (
 # when it equals the full From address (case-insensitive) or is an "@domain" suffix of it.
 EXCLUDED_SENDERS: frozenset[str] = frozenset()
 
+# Per-sender weight used to order sources before assembling /generate's context: sources are
+# stable-sorted by weight (descending), so a low-weight sender's links are the first dropped
+# when the token budget is tight, instead of survival being an accident of fetch order (e.g.
+# TLDR's several daily editions otherwise dominating the source list by sheer link volume).
+# Matches the same way as EXCLUDED_SENDERS (full address or "@domain" suffix, case-insensitive).
+# An unlisted sender defaults to 1.0. Values are relative, not normalized/percentages.
+NEWSLETTER_WEIGHTS: dict[str, float] = {
+    "@tldrnewsletter.com": 0.4,
+}
+
 # Per-run hard caps. Truncation is logged, never silent.
 MAX_NEWSLETTERS: int = 50
 MAX_URLS: int = 100
@@ -155,6 +165,12 @@ WHOLESALE_NGRAM: int = 20  # ≥ this many consecutive shared tokens ⇒ wholesa
 # 2 -> 1 so the generate loop (<=2 invocations, ~6-7 min each) plus scrape + Imagen + GitHub fits
 # the 20-minute run timeout; the job timeout is the backstop.
 MAX_GENERATE_RETRIES: int = 1
+
+# How many of the most-recently-published articles' theme+title are fed to `/generate` as a
+# rotation hint (2026-09-09: theme selection defaulted to IA on ~every run, so the prompt now
+# gets recent history to steer away from repeating the same theme/angle). Best-effort: a history
+# read failure degrades to an empty list rather than failing the run.
+RECENT_HISTORY_DAYS: int = 7
 
 # --- Publish: Imagen + GitHub ------------------------------------------------------------
 

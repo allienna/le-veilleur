@@ -14,21 +14,27 @@ from minion.ingest.models import SourceSet
 from minion.logging import BoundLogger
 
 
-def assemble_context(source_set: SourceSet, *, log: BoundLogger) -> AssembledContext:
-    """Select OK sources in order, dropping trailing ones until within the input-token budget.
+def assemble_context(
+    source_set: SourceSet, *, weights: dict[str, float] | None = None, log: BoundLogger
+) -> AssembledContext:
+    """Select OK sources by weight, dropping trailing ones until within the input-token budget.
 
-    Sources are also deduped by title (first-seen kept): the same article is sometimes syndicated
-    across multiple newsletter editions with distinct tracking-wrapper URLs (e.g. TLDR Dev and
-    TLDR AI both linking the same post). Left undeduped, the model cites one URL while the article
-    prose still names the shared title, which makes the copyright validator's title-attribution
-    check flag the other, uncited duplicate as "referenced but not linked" (2026-07-31 burn-in).
+    Sources are first stable-sorted by `weights` (descending, unlisted URLs default to 1.0), so a
+    low-weight sender's links sort toward the end and are the first cut when the budget is tight;
+    ties keep their original (fetch) order. They are also deduped by title (first-seen kept): the
+    same article is sometimes syndicated across multiple newsletter editions with distinct
+    tracking-wrapper URLs (e.g. TLDR Dev and TLDR AI both linking the same post). Left undeduped,
+    the model cites one URL while the article prose still names the shared title, which makes the
+    copyright validator's title-attribution check flag the other, uncited duplicate as
+    "referenced but not linked" (2026-07-31 burn-in).
     """
     selected: list[ContextSource] = []
     seen_titles: set[str] = set()
     used_tokens = 0
     dropped = 0
 
-    for source in source_set.ok_sources:
+    ordered = sorted(source_set.ok_sources, key=lambda s: -(weights or {}).get(s.url, 1.0))
+    for source in ordered:
         title_key = (source.title or "").strip().lower()
         if title_key and title_key in seen_titles:
             continue

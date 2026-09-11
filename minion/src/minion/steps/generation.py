@@ -5,7 +5,7 @@ encapsulated in `GenerateStep` (it owns the runner + feedback); `ValidateOutputS
 deterministic gate of record over the report `GenerateStep` stored.
 
 Data bag contract:
-- `assemble`        -> reads `sources`, writes `context: AssembledContext`
+- `assemble`        -> reads `sources` + `source_weights`, writes `context: AssembledContext`
 - `generate`        -> reads `context`, writes `article` + `report` (GeneratedArticle/Report)
 - `validate_output` -> reads `report`, gates the run
 """
@@ -33,7 +33,8 @@ from minion.generate.ports import GenerateRunner, GenerateTransportError
 from minion.generate.validate import validate_article
 from minion.ingest.models import SourceSet
 from minion.logging import BoundLogger
-from minion.models import StepName
+from minion.models import RecentArticle, StepName
+from minion.publish.ports import ContentRepoError, ContentRepository
 from minion.steps.base import StepContext, StepResult
 
 
@@ -82,7 +83,8 @@ class AssembleStep:
 
     def run(self, ctx: StepContext) -> StepResult:
         source_set = cast("SourceSet", ctx.data.get("sources") or SourceSet(sources=[]))
-        context = assemble_context(source_set, log=ctx.log)
+        source_weights = cast("dict[str, float]", ctx.data.get("source_weights") or {})
+        context = assemble_context(source_set, weights=source_weights, log=ctx.log)
         ctx.log.info("context assembled", extra={"sources": len(context.sources)})
         return StepResult(payload={"context": context})
 
@@ -97,16 +99,21 @@ class GenerateStep:
     """
 
     runner: GenerateRunner
+    content_repo: ContentRepository
     sleep: Callable[[float], None] = time.sleep
     name: StepName = StepName.generate
 
     def _invoke(
-        self, context: AssembledContext, feedback: list[str], log: BoundLogger
+        self,
+        context: AssembledContext,
+        feedback: list[str],
+        recent_history: list[RecentArticle],
+        log: BoundLogger,
     ) -> GenerateInvocation:
         """One logical invocation with transport-retry + exponential backoff."""
         for attempt in range(config.CLAUDE_TRANSPORT_RETRIES + 1):
             try:
-                return self.runner.invoke(context, feedback)
+                return self.runner.invoke(context, feedback, recent_history)
             except GenerateTransportError as exc:
                 if attempt >= config.CLAUDE_TRANSPORT_RETRIES:
                     raise
@@ -122,6 +129,13 @@ class GenerateStep:
 
     def run(self, ctx: StepContext) -> StepResult:
         context = cast("AssembledContext", ctx.data.get("context") or AssembledContext(sources=[]))
+        try:
+            recent_history = self.content_repo.get_recent_articles(config.RECENT_HISTORY_DAYS)
+        except ContentRepoError as exc:
+            # A theme-rotation hint, not a publish dependency: missing history degrades the
+            # prompt, never the run.
+            ctx.log.warning("recent article history unavailable", extra={"error": str(exc)})
+            recent_history = []
         feedback: list[str] = []
         last_errors: list[ValidationError] = []
         # Run-level cost/tokens: sum every billed `/generate` call (each retry costs money),
@@ -131,7 +145,7 @@ class GenerateStep:
         tokens: int | None = None
 
         for attempt in range(config.MAX_GENERATE_RETRIES + 1):
-            invocation = self._invoke(context, feedback, ctx.log)
+            invocation = self._invoke(context, feedback, recent_history, ctx.log)
             if invocation.cost_usd is not None:
                 cost_usd = (cost_usd or 0.0) + invocation.cost_usd
             if invocation.tokens is not None:

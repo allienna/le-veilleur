@@ -71,6 +71,29 @@ def test_url_cap_truncates(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(result.payload["candidate_urls"]) == 3  # type: ignore[arg-type]
 
 
+def test_source_weights_default_to_one() -> None:
+    client = FakeGmailClient(newsletters=[_newsletter("a@x.com", ["https://x.com/1"])])
+    result = GmailStep(client=client).run(_ctx())
+    assert result.payload["source_weights"] == {"https://x.com/1": 1.0}
+
+
+def test_source_weights_by_exact_address_and_domain(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "NEWSLETTER_WEIGHTS", {"@tldr.tech": 0.3, "noisy@news.com": 0.05})
+    client = FakeGmailClient(
+        newsletters=[
+            _newsletter("Ed <ed@tldr.tech>", ["https://tldr.tech/1"]),
+            _newsletter("noisy@news.com", ["https://news.com/1"]),
+            _newsletter("Real <news@good.com>", ["https://good.com/1"]),
+        ]
+    )
+    result = GmailStep(client=client).run(_ctx())
+    assert result.payload["source_weights"] == {
+        "https://tldr.tech/1": 0.3,
+        "https://news.com/1": 0.05,
+        "https://good.com/1": 1.0,
+    }
+
+
 def test_auth_failure_propagates() -> None:
     client = FakeGmailClient(error=RuntimeError("invalid_grant"))
     with pytest.raises(RuntimeError, match="invalid_grant"):
