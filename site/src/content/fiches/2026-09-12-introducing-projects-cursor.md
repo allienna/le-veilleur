@@ -1,0 +1,44 @@
+---
+title: "Introducing Projects · Cursor"
+date: 2026-09-12
+url: "https://elinkb7e.mail.aiwithremy.com/ss/c/u001.YBM5Qp34ySTr_4wyLjJQ5bt0COsDpm9BZPkYiRXM_CAqzEc8vlTjQ6Igx3Hkjum_0L-odZcj5Rr-eVtt7JdTBu-llM1QrYdNdGlB7DIB3sLx69VnzvtkbPGaVbZjyBIqUbU-wUM0SEJUc3GO7D7nwr1zghlA2HDOIQ14oBqig-u3vtdIZrCpWkP7-MSwPT8NQ-A_8uR7-dmAyrklA82Qrvoler0hgLoujwwKyh8IMRL0vLYhjGXMHQpXvnRNZ2--/4ty/Ec8DQ3QNSNKGyluF4vXnuQ/h5/h001.ydJmitnGKtJiEr2KIbQN9fB-GMc7nfLi7UKRJt2ryCE"
+keywords: ["agents IA", "Cursor", "orchestration", "productivité développeur", "migration de code", "automatisation"]
+theme: "IA"
+tone: "news"
+used_in: ["2026-09-12"]
+---
+
+## Résumé
+Cursor lance « Projects », une fonctionnalité qui permet de confier des travaux de longue durée — une fonctionnalité, une migration ou une application entière — à une flotte de sous-agents supervisés par un agent coordinateur. Ce coordinateur n'écrit pas de code lui-même : il planifie, délègue et fait appel à des agents cloud ou locaux selon les besoins, tout en s'appuyant sur un contexte partagé qui s'enrichit avec le temps. Cursor affirme que l'outil est déjà utilisé en interne depuis plusieurs mois (migrations de centaines de PR, maintenance du design system) et revendique des gains de productivité significatifs. La fonctionnalité est disponible en bêta et se déploie progressivement à tous les utilisateurs à partir d'aujourd'hui.
+
+## Points clés
+- « Projects » cible les travaux qui dépassent le cadre d'une simple conversation : fonctionnalités complètes, migrations, ou maintenance continue.
+- Le rôle central est un « agent coordinateur » qui ne code pas mais dirige des milliers de sous-agents chargés d'exécuter le travail.
+- Trois piliers techniques : exécution cloud par défaut (avec bascule vers une machine locale pour les tests), un contexte partagé et persistant entre agents et machines, et des « abonnements » à des signaux externes (Slack, ouverture/fusion de PR, planification).
+- Gains de productivité annoncés en interne : +30 % de PR fusionnées pour les nouveaux utilisateurs, et jusqu'à six fois plus pour les utilisateurs réguliers de Projects.
+- Trois usages types illustrés : développement de fonctionnalités de bout en bout, migrations progressives à grande échelle, et surveillance continue de la qualité (design system, revue de PR, règles de lint).
+- Lancement en bêta avec déploiement progressif à l'ensemble des utilisateurs dès aujourd'hui, accessible depuis la barre latérale gauche de Cursor.
+
+## Analyse approfondie
+**Présentation générale.** Cursor annonce le lancement de « Projects », une fonctionnalité pensée pour prendre en charge des volumes de travail plus importants qu'une simple tâche ponctuelle : une fonctionnalité produit, une migration technique, ou même une application complète. Elle vise à maintenir le contexte sur plusieurs mois de travail, à répartir les tâches entre des milliers de sous-agents, et à effectuer un travail récurrent sans intervention explicite de l'utilisateur.
+
+Cursor rattache ce lancement à une vision exposée en février d'une « troisième ère » du développement logiciel, où des flottes entières d'agents prennent en charge des pans complets de travail. Projects en serait la traduction concrète : en faisant monter le niveau d'abstraction, l'outil libère les développeurs de la gestion directe des agents pour leur permettre de piloter le travail lui-même plutôt que son exécution.
+
+**Usage interne et résultats revendiqués.** Selon Cursor, l'équipe utilise Projects en interne depuis plusieurs mois pour des tâches comme la migration de plusieurs centaines de pull requests, le maintien de la cohérence de son design system, ou encore le développement de Projects lui-même. L'entreprise présente l'outil comme un multiplicateur de productivité substantiel : les nouveaux utilisateurs fusionneraient 30 % de PR en plus, et les utilisateurs qui s'appuient principalement sur Projects en fusionneraient jusqu'à six fois plus.
+
+**Fonctionnement du coordinateur.** L'utilisateur supervise un Project en dialoguant avec son agent coordinateur. Ce dernier ne rédige pas de code lui-même, mais dirige d'autres agents qui s'en chargent. Parce qu'il délègue plutôt qu'il n'exécute, le coordinateur n'est jamais bloqué et reste disponible pour réagir aux instructions.
+
+**Trois capacités fondatrices.**
+- *Cloud par défaut, local si nécessaire* : un Project s'exécute sur sa propre machine, de sorte que fermer son ordinateur portable ne l'interrompt pas. Cela permet de faire tourner davantage de sous-agents en parallèle que ce qu'un ordinateur portable pourrait supporter. Lorsqu'un test doit être effectué sur la machine de l'utilisateur, le coordinateur lance un agent local à cet effet.
+- *Contexte partagé* : il ne devrait pas être nécessaire de « réonboarder » un agent à chaque nouvelle tâche. Chaque Project maintient un ensemble de fichiers synchronisés entre toutes les machines cloud et locales utilisées par ses agents. Les agents y ajoutent des travaux de recherche, des artefacts, ainsi que ce qu'ils apprennent sur la base de code et sur les préférences de travail de l'utilisateur. Si un agent découvre comment tester un service donné, par exemple, tous les agents suivants peuvent réutiliser cette méthode. Ce contexte s'enrichit avec le Project, rendant le coordinateur de plus en plus efficace dans le temps.
+- *Abonnements* : le coordinateur peut surveiller un canal Slack, s'exécuter selon un planning, ou suivre l'ensemble des pull requests de l'utilisateur, en corrigeant l'intégration continue (CI) et en agissant à l'ouverture ou à la fusion des PR. Il peut ainsi agir sur la base de signaux détectés, sans attendre d'être sollicité.
+
+**Trois schémas d'usage courants.**
+1. *Développement de fonctionnalités* : la plupart des ingénieurs créent un Project pour un travail conséquent. Une fonctionnalité démarre généralement par une phase de recherche des agents sur le système existant, dont les enseignements sont consignés comme contexte partagé. Le coordinateur élabore ensuite un plan et envoie des agents implémenter et tester différentes parties de celui-ci en parallèle. À chaque cycle de retours, le Project apprend l'architecture et les préférences de l'utilisateur. Lorsque la fonctionnalité est prête à être testée, le coordinateur peut démarrer un agent local sur l'ordinateur de l'utilisateur pour l'exécuter. Une fois livrée, le même Project peut continuer à surveiller les journaux (logs) et à traiter les signalements de bugs en conservant tout le contexte des décisions initiales.
+2. *Migrations* : les Projects sont particulièrement utiles pour les migrations, faciles à démarrer mais difficiles à terminer. Chez Cursor, ils ont servi à adopter de nouveaux frameworks et à remplacer des systèmes de style sur des centaines de PR. L'utilisateur établit avec le coordinateur une approche sûre, que celui-ci applique ensuite progressivement à l'ensemble de la base de code. Au début, chaque PR est examinée de près ; à mesure que les corrections se révèlent fiables, la supervision diminue et le coordinateur poursuit seul la migration.
+3. *Maintenance continue* : les Projects conviennent bien aux tâches qui ne se terminent jamais vraiment, comme le maintien de la qualité du code ou la surveillance des régressions. Un ingénieur de l'équipe Cursor fait ainsi tourner un Project dédié au design system : il a d'abord vérifié chaque correction et corrigé les erreurs, avant que le coordinateur ne prenne en charge lui-même l'analyse de chaque nouvelle PR, l'extraction des composants relevant du design system, et l'ajout d'une règle de lint dès qu'une même erreur se reproduit. Ce Project est en passe de traiter entre 20 et 100 PR par jour : le coordinateur organise le travail, et l'ingénieur n'intervient que là où son attention est réellement nécessaire.
+
+**Disponibilité.** Projects est disponible en version bêta et se déploie progressivement auprès de tous les utilisateurs à partir d'aujourd'hui. Il suffit de démarrer un Project depuis la barre latérale gauche, de décrire le travail souhaité, et le coordinateur prend le relais. L'outil est présenté comme particulièrement adapté aux travaux qui dépassent le cadre d'une seule conversation : une fonctionnalité comportant plusieurs PR, une migration, ou une tâche à mener pendant l'absence de l'utilisateur.
+
+## Pourquoi ça compte
+Ce lancement illustre une tendance forte dans les outils de développement assistés par IA : le passage d'un agent unique répondant à une requête vers une « flotte » d'agents coordonnés capable de porter des projets entiers dans la durée, avec supervision humaine allégée. À suivre en veille : la vérification indépendante des gains de productivité annoncés et la manière dont des concurrents (GitHub Copilot, Devin, etc.) répondront à ce positionnement d'« orchestration de flotte d'agents ».
