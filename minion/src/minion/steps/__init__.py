@@ -42,7 +42,7 @@ def build_pipeline(
         StepName.scrape: ScrapeStep(client=scraper_client),
         StepName.validate_input: ValidateInputStep(),
         StepName.assemble: AssembleStep(),
-        StepName.generate: GenerateStep(runner=generate_runner),
+        StepName.generate: GenerateStep(runner=generate_runner, content_repo=content_repo),
         StepName.validate_output: ValidateOutputStep(),
         StepName.imagen: ImagenStep(
             image_generator=image_generator, prompt_rewriter=prompt_rewriter

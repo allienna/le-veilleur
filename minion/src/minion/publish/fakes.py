@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from minion.models import RecentArticle
 from minion.publish.ports import ContentRepoError, ImagenBlockedError
 
 
@@ -73,17 +74,28 @@ def _no_put_calls() -> list[PutCall]:
     return []
 
 
+def _no_recent_articles() -> list[RecentArticle]:
+    return []
+
+
 @dataclass
 class FakeContentRepository:
     """Records `put_files` calls, one per commit. Optionally raises `ContentRepoError` for the
     first `fail_times` calls (to exercise the caller's retry/backoff), then succeeds with a
-    deterministic SHA derived from the call index."""
+    deterministic SHA derived from the call index.
+
+    `recent_articles` scripts `get_recent_articles` — tests populate it to assert the history
+    reaches `/generate`; it defaults to empty (no history available)."""
 
     fail_times: int = 0
     calls: list[PutCall] = field(default_factory=_no_put_calls)
+    recent_articles: list[RecentArticle] = field(default_factory=_no_recent_articles)
 
     def put_files(self, files: list[tuple[str, bytes]], message: str) -> str:
         self.calls.append(PutCall(files=list(files), message=message))
         if len(self.calls) <= self.fail_times:
             raise ContentRepoError(f"fake transient failure ({len(self.calls)}/{self.fail_times})")
         return f"sha-{len(self.calls)}"
+
+    def get_recent_articles(self, n: int) -> list[RecentArticle]:
+        return self.recent_articles[:n]

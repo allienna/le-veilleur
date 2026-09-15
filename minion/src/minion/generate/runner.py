@@ -22,6 +22,7 @@ import tempfile
 from minion import config, secrets
 from minion.generate.models import AssembledContext, GenerateInvocation
 from minion.generate.ports import GenerateTransportError
+from minion.models import RecentArticle
 
 
 def _parse_output(stdout: str) -> GenerateInvocation:
@@ -63,11 +64,14 @@ def _build_env() -> dict[str, str]:
     return env
 
 
-def _write_context(context: AssembledContext, feedback: list[str]) -> str:
-    """Serialize the context + feedback to a temp JSON file; return its path."""
+def _write_context(
+    context: AssembledContext, feedback: list[str], recent_history: list[RecentArticle]
+) -> str:
+    """Serialize the context + feedback + recent history to a temp JSON file; return its path."""
     payload = {
         "sources": [s.model_dump() for s in context.sources],
         "feedback": list(feedback),
+        "recent_history": [a.model_dump() for a in recent_history],
     }
     with tempfile.NamedTemporaryFile(
         "w", suffix=".json", prefix="generate-ctx-", delete=False, encoding="utf-8"
@@ -79,8 +83,13 @@ def _write_context(context: AssembledContext, feedback: list[str]) -> str:
 class ClaudeGenerateRunner:
     """`GenerateRunner` over the `claude` CLI subprocess."""
 
-    def invoke(self, context: AssembledContext, feedback: list[str]) -> GenerateInvocation:
-        context_path = _write_context(context, feedback)
+    def invoke(
+        self,
+        context: AssembledContext,
+        feedback: list[str],
+        recent_history: list[RecentArticle] | None = None,
+    ) -> GenerateInvocation:
+        context_path = _write_context(context, feedback, recent_history or [])
         argv = [
             f"/generate {context_path}" if part == "/generate" else part
             for part in config.CLAUDE_CMD

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from minion.models import RecentArticle
+
 
 class ImagenBlockedError(RuntimeError):
     """Imagen returned no usable image — safety/moderation rejection, empty response, or quota.
@@ -49,4 +51,12 @@ class ContentRepository(Protocol):
         draft, or a batch of fiches) must land as a single history entry and trip a single
         Pages deploy, not one commit per file. Raises `ContentRepoError` on any non-2xx
         response or transport failure."""
+        ...
+
+    def get_recent_articles(self, n: int) -> list[RecentArticle]:
+        """Return up to the `n` most recently published articles (most recent first), each
+        reduced to its `date`/`title`/`themes` frontmatter — fed to `/generate` as a theme-
+        rotation hint. An article whose frontmatter cannot be parsed is skipped, not an error:
+        this is a best-effort prompt signal, not a publish-path dependency. Raises
+        `ContentRepoError` only on a transport/API failure listing or reading the directory."""
         ...

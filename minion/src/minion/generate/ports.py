@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from minion.generate.models import AssembledContext, GenerateInvocation
+from minion.models import RecentArticle
 
 
 class GenerateTransportError(RuntimeError):
@@ -23,9 +24,15 @@ class GenerateTransportError(RuntimeError):
 class GenerateRunner(Protocol):
     """Runs one `/generate` invocation and returns its artefact text plus usage telemetry."""
 
-    def invoke(self, context: AssembledContext, feedback: list[str]) -> GenerateInvocation:
-        """Invoke `/generate` with the assembled context and any prior-attempt validation
-        `feedback`, returning the artefact text and (when reported) the call's USD cost + token
-        count. Raises `GenerateTransportError` on a transport failure; the caller parses +
-        validates the returned `text`."""
+    def invoke(
+        self,
+        context: AssembledContext,
+        feedback: list[str],
+        recent_history: list[RecentArticle] | None = None,
+    ) -> GenerateInvocation:
+        """Invoke `/generate` with the assembled context, any prior-attempt validation
+        `feedback`, and `recent_history` (the last few days' published theme/title, used as a
+        rotation hint — `None`/empty when unavailable). Returns the artefact text and (when
+        reported) the call's USD cost + token count. Raises `GenerateTransportError` on a
+        transport failure; the caller parses + validates the returned `text`."""
         ...

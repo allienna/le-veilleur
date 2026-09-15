@@ -17,6 +17,7 @@ from minion.generate import runner as runner_mod
 from minion.generate.models import AssembledContext, ContextSource
 from minion.generate.ports import GenerateTransportError
 from minion.generate.runner import ClaudeGenerateRunner
+from minion.models import RecentArticle
 
 CONTEXT = AssembledContext(
     sources=[ContextSource(url="https://s.io/1", title="One", markdown="body")]
@@ -110,6 +111,21 @@ def test_feedback_forwarded_into_context_file(monkeypatch: pytest.MonkeyPatch) -
     ClaudeGenerateRunner().invoke(CONTEXT, ["fix the linkedin length", "add attribution"])
     assert cap["payload"]["feedback"] == ["fix the linkedin length", "add attribution"]
     assert cap["payload"]["sources"][0]["url"] == "https://s.io/1"
+
+
+def test_recent_history_forwarded_into_context_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    cap = _capture(monkeypatch, _Completed(returncode=0, stdout="{}"))
+    history = [RecentArticle(date="2026-09-08", title="Hier", themes=["IA"])]
+    ClaudeGenerateRunner().invoke(CONTEXT, [], history)
+    assert cap["payload"]["recent_history"] == [
+        {"date": "2026-09-08", "title": "Hier", "themes": ["IA"]}
+    ]
+
+
+def test_missing_recent_history_defaults_to_empty_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    cap = _capture(monkeypatch, _Completed(returncode=0, stdout="{}"))
+    ClaudeGenerateRunner().invoke(CONTEXT, [])
+    assert cap["payload"]["recent_history"] == []
 
 
 def test_binary_missing_raises_transport_error(monkeypatch: pytest.MonkeyPatch) -> None:

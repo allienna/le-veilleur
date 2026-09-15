@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from minion.generate.models import AssembledContext, GenerateInvocation
+from minion.models import RecentArticle
 
 
 def _no_outputs() -> list[str]:
@@ -17,6 +18,10 @@ def _no_outputs() -> list[str]:
 
 
 def _no_calls() -> list[list[str]]:
+    return []
+
+
+def _no_history_calls() -> list[list[RecentArticle]]:
     return []
 
 
@@ -34,9 +39,16 @@ class FakeGenerateRunner:
     cost_usd: float | None = None
     tokens: int | None = None
     calls: list[list[str]] = field(default_factory=_no_calls)
+    history_calls: list[list[RecentArticle]] = field(default_factory=_no_history_calls)
 
-    def invoke(self, context: AssembledContext, feedback: list[str]) -> GenerateInvocation:
+    def invoke(
+        self,
+        context: AssembledContext,
+        feedback: list[str],
+        recent_history: list[RecentArticle] | None = None,
+    ) -> GenerateInvocation:
         self.calls.append(list(feedback))
+        self.history_calls.append(list(recent_history or []))
         if self.error is not None:
             raise self.error
         if not self.outputs:

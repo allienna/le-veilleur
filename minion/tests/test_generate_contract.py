@@ -68,6 +68,13 @@ def test_spec_forbids_the_frontmatter_keys_the_model_would_reject() -> None:
         assert f"`{key}`" in spec, f"the spec must tell the model not to emit {key!r}"
 
 
+def test_spec_documents_recent_history_input() -> None:
+    """The runner threads `recent_history` into the context file (`generate/runner.py`); the spec
+    must document it as an input field or the model has no idea it exists."""
+    spec = _spec_text()
+    assert "recent_history" in spec
+
+
 def test_spec_sources_example_is_parseable_by_count_sources() -> None:
     """The article template's Sources list must match the parser that derives the source count,
     or every published article would claim `sources: 0`."""

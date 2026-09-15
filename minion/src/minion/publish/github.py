@@ -23,14 +23,41 @@ checkout, so it publishes through the API rather than with git.
 from __future__ import annotations
 
 import base64
+import re
 from typing import Any
 
 import httpx
 
 from minion import config, secrets
+from minion.models import RecentArticle
 from minion.publish.ports import ContentRepoError
 
 _API_BASE = "https://api.github.com"
+
+_ARTICLES_DIR = "site/src/content/articles"
+# Matches only the exact shapes `publish/serialize.py` emits (`title: "…"`, `themes: [A, B]`) —
+# this is the only writer of these files, so a dependency-free regex beats a `pyyaml` add just to
+# read a format this codebase fully controls.
+_FRONTMATTER_TITLE = re.compile(r'^title:\s*"((?:[^"\\]|\\.)*)"\s*$', re.MULTILINE)
+_FRONTMATTER_THEMES = re.compile(r"^themes:\s*\[(.*)\]\s*$", re.MULTILINE)
+
+
+def _parse_frontmatter(text: str) -> tuple[str, list[str]] | None:
+    """Extract `(title, themes)` from a `render_post`-shaped article, or `None` if it doesn't
+    match — e.g. a malformed or hand-edited file, skipped rather than failing the whole read."""
+    if not text.startswith("---\n"):
+        return None
+    end = text.find("\n---", 4)
+    if end == -1:
+        return None
+    block = text[4:end]
+    title_match = _FRONTMATTER_TITLE.search(block)
+    themes_match = _FRONTMATTER_THEMES.search(block)
+    if not title_match or not themes_match:
+        return None
+    title = title_match.group(1).replace('\\"', '"').replace("\\\\", "\\")
+    themes = [t.strip() for t in themes_match.group(1).split(",") if t.strip()]
+    return title, themes
 
 
 class GitHubContentRepository:
@@ -51,7 +78,7 @@ class GitHubContentRepository:
     def _url(self, path: str) -> str:
         return f"{_API_BASE}/repos/{config.GITHUB_REPO_OWNER}/{config.GITHUB_REPO_NAME}/{path}"
 
-    def _get(self, path: str, headers: dict[str, str]) -> dict[str, Any]:
+    def _get(self, path: str, headers: dict[str, str]) -> Any:
         try:
             response = self._client.get(self._url(path), headers=headers)
         except httpx.HTTPError as exc:
@@ -115,3 +142,33 @@ class GitHubContentRepository:
             )
 
         return commit_sha
+
+    def get_recent_articles(self, n: int) -> list[RecentArticle]:
+        headers = self._headers()
+        entries = self._get(f"contents/{_ARTICLES_DIR}", headers)
+        if not isinstance(entries, list):
+            return []
+        names = sorted(
+            (
+                e["name"]
+                for e in entries
+                if isinstance(e, dict) and str(e.get("name", "")).endswith(".md")
+            ),
+            reverse=True,
+        )[:n]
+
+        recent: list[RecentArticle] = []
+        for name in names:
+            file_obj = self._get(f"contents/{_ARTICLES_DIR}/{name}", headers)
+            if not isinstance(file_obj, dict) or file_obj.get("encoding") != "base64":
+                continue
+            try:
+                text = base64.b64decode(file_obj["content"]).decode("utf-8")
+            except (KeyError, ValueError):
+                continue
+            parsed = _parse_frontmatter(text)
+            if parsed is None:
+                continue
+            title, themes = parsed
+            recent.append(RecentArticle(date=name.removesuffix(".md"), title=title, themes=themes))
+        return recent

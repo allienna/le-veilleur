@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 __all__ = [
     "ALREADY_RUNNING",
     "Lock",
+    "RecentArticle",
     "Run",
     "RunStatus",
     "RunStep",
@@ -84,6 +85,22 @@ class Run(BaseModel):
         default=None, description="Total LLM tokens consumed by `generate`. None when none ran."
     )
     steps: list[RunStep] = Field(description="Ordered per-step records.")
+
+
+class RecentArticle(BaseModel):
+    """One previously published article, reduced to what `/generate` needs to steer theme
+    selection away from repeating the same theme or narrative angle too many days running.
+
+    Shared between `generate` (consumes it, via `GenerateRunner.invoke`) and `publish` (produces
+    it, via `ContentRepository.get_recent_articles`) — kept here rather than in either domain's
+    own models to avoid a cross-domain import.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    date: str
+    title: str
+    themes: list[str]
 
 
 class Lock(BaseModel):

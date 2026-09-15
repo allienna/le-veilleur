@@ -17,6 +17,7 @@ from minion.generate.models import AssembledContext, ValidationError, Validation
 from minion.generate.ports import GenerateTransportError
 from minion.ingest.models import ScrapedSource, SourceOutcome, SourceSet
 from minion.logging import bind
+from minion.publish.fakes import FakeContentRepository
 from minion.steps.base import StepContext
 from minion.steps.generation import (
     AssembleStep,
@@ -65,9 +66,13 @@ def test_assemble_step_writes_context() -> None:
 # --- GenerateStep: parse / theme / transport -------------------------------------
 
 
+def _step(runner: FakeGenerateRunner, **kwargs: Any) -> GenerateStep:
+    return GenerateStep(runner=runner, content_repo=FakeContentRepository(), **kwargs)
+
+
 def test_generate_parses_and_stores_article() -> None:
     runner = FakeGenerateRunner(outputs=[_artifact()])
-    result = GenerateStep(runner=runner).run(_ctx({"context": AssembledContext(sources=[])}))
+    result = _step(runner).run(_ctx({"context": AssembledContext(sources=[])}))
     assert result.payload["article"] is not None
     report = result.payload["report"]
     assert isinstance(report, ValidationReport) and report.ok
@@ -75,16 +80,37 @@ def test_generate_parses_and_stores_article() -> None:
 
 def test_unknown_theme_normalized_to_the_default() -> None:
     runner = FakeGenerateRunner(outputs=[_artifact(theme="quantum-computing")])
-    result = GenerateStep(runner=runner).run(_ctx({"context": AssembledContext(sources=[])}))
+    result = _step(runner).run(_ctx({"context": AssembledContext(sources=[])}))
     assert result.payload["article"].theme == config.DEFAULT_THEME  # type: ignore[union-attr]
 
 
 def test_transport_error_retries_then_propagates() -> None:
     runner = FakeGenerateRunner(error=GenerateTransportError("boom"))
-    step = GenerateStep(runner=runner, sleep=lambda _s: None)
+    step = _step(runner, sleep=lambda _s: None)
     with pytest.raises(GenerateTransportError):
         step.run(_ctx({"context": AssembledContext(sources=[])}))
     assert len(runner.calls) == 1 + config.CLAUDE_TRANSPORT_RETRIES  # initial + transport retries
+
+
+def test_recent_history_from_content_repo_reaches_the_runner() -> None:
+    from minion.models import RecentArticle
+    from minion.publish.ports import ContentRepoError
+
+    runner = FakeGenerateRunner(outputs=[_artifact()])
+    history = [RecentArticle(date="2026-05-31", title="Hier", themes=["IA"])]
+    step = GenerateStep(runner=runner, content_repo=FakeContentRepository(recent_articles=history))
+    step.run(_ctx({"context": AssembledContext(sources=[])}))
+    assert runner.history_calls[0] == history
+
+    class _BrokenContentRepository(FakeContentRepository):
+        def get_recent_articles(self, n: int) -> list[RecentArticle]:
+            raise ContentRepoError("boom")
+
+    runner2 = FakeGenerateRunner(outputs=[_artifact()])
+    step2 = GenerateStep(runner=runner2, content_repo=_BrokenContentRepository())
+    result = step2.run(_ctx({"context": AssembledContext(sources=[])}))
+    assert result.payload["article"] is not None  # a history-read failure never fails the run
+    assert runner2.history_calls[0] == []
 
 
 # --- GenerateStep: validation retry loop -----------------------------------------
@@ -92,7 +118,7 @@ def test_transport_error_retries_then_propagates() -> None:
 
 def test_invalid_then_valid_retries_with_feedback() -> None:
     runner = FakeGenerateRunner(outputs=[_artifact(linkedin="x" * 3001), _artifact()])
-    step = GenerateStep(runner=runner, sleep=lambda _s: None)
+    step = _step(runner, sleep=lambda _s: None)
     result = step.run(_ctx({"context": AssembledContext(sources=[])}))
     assert result.payload["article"] is not None
     assert len(runner.calls) == 2  # one retry
@@ -102,7 +128,7 @@ def test_invalid_then_valid_retries_with_feedback() -> None:
 
 def test_unparseable_output_is_retried() -> None:
     runner = FakeGenerateRunner(outputs=["this is not json", _artifact()])
-    result = GenerateStep(runner=runner, sleep=lambda _s: None).run(
+    result = _step(runner, sleep=lambda _s: None).run(
         _ctx({"context": AssembledContext(sources=[])})
     )
     assert result.payload["article"] is not None
@@ -111,7 +137,7 @@ def test_unparseable_output_is_retried() -> None:
 
 def test_exhausted_validation_retries_raises() -> None:
     runner = FakeGenerateRunner(outputs=[_artifact(linkedin="x" * 3001)])  # always invalid
-    step = GenerateStep(runner=runner, sleep=lambda _s: None)
+    step = _step(runner, sleep=lambda _s: None)
     with pytest.raises(GenerationFailedError, match="linkedin_too_long"):
         step.run(_ctx({"context": AssembledContext(sources=[])}))
     assert len(runner.calls) == 1 + config.MAX_GENERATE_RETRIES  # initial + validation retries

@@ -21,7 +21,8 @@ inside the Minion image.
 ```json
 {
   "sources": [{ "url": "...", "title": "...", "markdown": "..." }, ...],
-  "feedback": ["validation error from a previous attempt", ...]
+  "feedback": ["validation error from a previous attempt", ...],
+  "recent_history": [{ "date": "YYYY-MM-DD", "title": "...", "themes": ["..."] }, ...]
 }
 ```
 
@@ -31,6 +32,9 @@ inside the Minion image.
    add a missing source link).
 3. The `sources` are already filtered (sponsors, duplicates and paywalled content removed). Use
    them as the raw material; do not invent sources or facts not present in them.
+4. `recent_history` lists the last few days' published articles, most recent first (may be empty
+   — e.g. the very first run, or history temporarily unavailable). Use it only for **theme
+   selection** (see below) — never as source material or subject matter for today's article.
 
 ## Output (the contract — read carefully)
 
@@ -67,9 +71,17 @@ Field rules:
 - **`body`** — the full article in Markdown, structure below. Do NOT include the YAML front-matter
   block in `body`; the frontmatter lives in the JSON object above.
 
-### Theme priority
-When several themes compete for the day's narrative, value them in this order:
-**IA > Leadership > Data > general tech news.**
+### Theme selection
+Choose the theme(s) that genuinely describe *today's* dominant subject in the sources — never
+default to `IA` just because an AI-related source happens to be in the mix.
+
+Use `recent_history` as a tie-breaker: if the last few entries already lean heavily on one
+theme or the same narrative angle (e.g. several consecutive "AI agent autonomy" pieces), and
+today's sources honestly support a different framing — `Data`, `Géopolitique`, `Leadership`,
+`Sécurité` — prefer that framing over defaulting back to `IA`/`Tech`.
+
+This is a tie-breaker, not a mandate: never force a theme the sources don't genuinely support.
+Honesty about today's real subject always comes first.
 
 ### Hard caps (deterministic validation rejects violations → you will be re-invoked)
 - LinkedIn post ≤ **3000 characters**.
