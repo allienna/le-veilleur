@@ -107,11 +107,19 @@ adding a version.
 > `aurelien.allienne@gmail.com` account on project `veilleur-app`. Append
 > `--account=aurelien.allienne@gmail.com --project=veilleur-app` to be safe.
 
-### 3a. Gmail OAuth refresh-token revoked (`gmail-oauth-refresh-token`)
+### 3a. Gmail OAuth refresh-token revoked, or the ingestion inbox needs to change (`gmail-oauth-refresh-token`)
 
 Symptom: the run fails at the `gmail` step, error contains `invalid_grant` / `Token has been
 expired or revoked`. Google revokes refresh tokens on password change, scope change, 6-month
 inactivity, or manual revocation at <https://myaccount.google.com/permissions>.
+
+> **This secret's authorized account is `veilleur.allienne@gmail.com` — a dedicated newsletter
+> inbox, separate from the `aurelien.allienne@gmail.com` operator account used for every `gcloud`
+> call above.** Whichever Google account you sign into during step 1's browser consent becomes
+> the mailbox `gmail` polls; step 3's `--account` flag is unrelated (that's just who is allowed to
+> write the GCP secret). Mixing the two up means `gmail` reads someone's personal inbox instead of
+> the curated newsletter subscriptions (2026-09-10: this happened, and pulled in Amazon/Airbnb
+> transactional mail as "sources").
 
 You re-consent locally to mint a fresh `authorized_user.json`, then push it as a new secret version.
 This reuses the **same OAuth client** seeded for the spike (Desktop app).
