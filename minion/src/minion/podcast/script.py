@@ -8,6 +8,12 @@ instruction, keeps argv short) and `publish/imagen.py`'s `ClaudePromptRewriter` 
 instruction, no vendored slash-command spec — this is a secondary, best-effort artefact, not the
 `/generate` contract). Same OAuth-only env as every other `claude` subprocess call in this
 codebase: `CLAUDE_CODE_OAUTH_TOKEN` injected, `ANTHROPIC_API_KEY` stripped.
+
+Each source's markdown is truncated to `config.PODCAST_SOURCE_EXCERPT_CHARS` before being written
+to the context file — a first real run timed out feeding every OK source's full extracted
+content, unbounded by anything like `/generate`'s `assemble_context` token budget. The script
+only needs to synthesize across sources, not quote any one of them faithfully, so a short excerpt
+per source is enough and keeps the call fast regardless of how many sources the day has.
 """
 
 from __future__ import annotations
@@ -23,14 +29,15 @@ from minion.ingest.models import ScrapedSource
 from minion.podcast.ports import PodcastGenerationError, ScriptTurn
 
 _INSTRUCTION = """\
-You are writing a French two-host "deep dive" podcast script summarizing today's tech-watch \
-sources for the file at {context_path}. That file is a JSON array of objects, each with \
-"url", "title" and "markdown" (the source's extracted content).
+Read the file at {context_path} using your Read tool. It is a JSON array of objects, each \
+with "url", "title" and "excerpt" (a short excerpt of the source's extracted content — not \
+the full article).
 
-Write a natural, conversational French dialogue between two hosts, named only "A" and "B", \
-discussing the most interesting and important stories across these sources — synthesizing \
-across sources, not reading them one by one. Aim for roughly {target_words} words total, \
-split naturally between both speakers.
+You are writing a French two-host "deep dive" podcast script summarizing today's tech-watch \
+sources, based on those excerpts. Write a natural, conversational French dialogue between two \
+hosts, named only "A" and "B", discussing the most interesting and important stories across \
+these sources — synthesizing across sources, not reading them one by one. Aim for roughly \
+{target_words} words total, split naturally between both speakers.
 
 Reply with ONLY a JSON array, no preamble or code fences, of objects shaped exactly like:
 [{{"speaker": "A", "text": "..."}}, {{"speaker": "B", "text": "..."}}, ...]
@@ -89,7 +96,12 @@ def _build_env() -> dict[str, str]:
 
 def _write_sources(sources: list[ScrapedSource]) -> str:
     payload = [
-        {"url": s.url, "title": s.title or s.url, "markdown": s.markdown or ""} for s in sources
+        {
+            "url": s.url,
+            "title": s.title or s.url,
+            "excerpt": (s.markdown or "")[: config.PODCAST_SOURCE_EXCERPT_CHARS],
+        }
+        for s in sources
     ]
     with tempfile.NamedTemporaryFile(
         "w", suffix=".json", prefix="podcast-sources-", delete=False, encoding="utf-8"
