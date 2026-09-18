@@ -2,51 +2,85 @@
 title: "MCP Server Visibility: Finding What Employees Connected on Their Own Laptops"
 date: 2026-09-18
 url: "https://tracking.tldrnewsletter.com/CL0/https:%2F%2Frepello.ai%2Fblog%2Fmcp-server-visibility-employee-devices%3Futm_source=tldrit/1/010001a0af4cf319-1031fadd-7514-4e10-a19f-5ad4018bc42d-000000/koTUXp0rAYJd8i-59U2dZtWsVBKMmDRUisqpI7EnZtc=452"
-keywords: ["MCP", "shadow IT", "endpoint", "inventaire", "agents IA", "supply chain"]
+keywords: ["MCP", "shadow IT", "endpoint", "inventaire", "supply chain", "DevSecOps"]
 theme: "Sécurité"
 tone: "opinion"
 used_in: ["2026-09-18"]
 ---
 
 ## Résumé
-L'article de Repello AI expose un angle mort de sécurité propre au Model Context Protocol (MCP) : il n'existe aucune console d'administration centrale pour savoir quels serveurs MCP un employé a connectés sur sa machine. La configuration vit uniquement dans des fichiers JSON par utilisateur et par client (Claude Desktop, Cursor, Claude Code, VS Code), qu'un développeur peut modifier sans validation ni trace. L'auteur montre que le nom d'un serveur ne dit rien de ce qu'il exécute réellement, et que ce qui compte est la commande résolue : binaire lancé, version du paquet réellement exécutée, identifiants transmis et transport utilisé. Il en conclut qu'il s'agit d'un problème de visibilité sur le poste de travail (endpoint), pas d'un problème d'identité ni de réseau, et propose une liste de ce qu'un inventaire MCP sérieux devrait recueillir.
+L'article de Repello AI soutient qu'il n'existe aucune console d'administration pour le Model Context Protocol (MCP) : chaque serveur MCP est déclaré dans un fichier JSON local, propre à chaque client (Claude Desktop, Cursor, Claude Code, VS Code), qu'un développeur peut modifier sans validation ni journalisation. Il en résulte qu'aucune méthode classique (SSO, achat, console d'admin, signature réseau) ne permet de savoir quels serveurs MCP sont réellement connectés sur le parc de postes. L'auteur montre que le nom d'un serveur ne dit rien de ce qu'il exécute réellement, et qu'un inventaire fiable doit lire la configuration résolue (binaire, package, version, identifiants, transport) directement sur le poste de travail. La conclusion : il s'agit d'un problème d'endpoint, pas d'identité ni de réseau, qui appelle une mesure continue plutôt qu'un audit ponctuel.
 
 ## Points clés
-- Il n'existe ni SSO, ni registre d'achats, ni console d'admin, ni signature réseau pour les serveurs MCP : le fichier de config JSON sur le poste de l'employé est la seule source de vérité.
-- Chaque client (Claude Desktop, Cursor, Claude Code, VS Code/Copilot) maintient sa propre configuration, isolée des autres, ce qui multiplie les inventaires partiels par machine.
-- Le nom déclaré d'un serveur ne garantit rien : une entrée appelée « docs » peut en réalité lancer n'importe quel exécutable, y compris un shell (`/bin/bash`, `python -c`).
-- Beaucoup de serveurs se lancent via `npx` avec un tag flottant : le code réellement exécuté est celui livré par le registre au moment du lancement, pas celui qui a été audité.
-- Les identifiants (clés API, tokens) transitent souvent en clair dans les variables d'environnement du même fichier de configuration, un point aveugle si l'inventaire ne capture que les noms de serveurs.
-- Le transport (stdio local vs HTTP) change radicalement la surface d'exposition ; les vulnérabilités passées (ex. serveur MCP n8n) ne concernaient que le mode HTTP multi-tenant, pas les déploiements stdio locaux.
+- MCP ne dispose d'aucun registre central : chaque client (Claude Desktop, Cursor, Claude Code, VS Code/Copilot) stocke sa propre configuration JSON dans le profil de l'utilisateur, sans lien entre elles.
+- Ajouter un serveur MCP est une simple modification de fichier texte, sans approbation ni trace d'audit.
+- Le nom d'un serveur est arbitraire et ne garantit rien : une entrée nommée « docs » peut en réalité lancer n'importe quel exécutable (y compris un shell) avec n'importe quel argument.
+- Ce qui compte réellement, c'est la commande résolue : le point d'entrée exécuté, le package et sa version réellement installée (souvent via `npx` avec un tag flottant), les identifiants transmis via des variables d'environnement, et le type de transport (stdio local vs HTTP exposé).
+- Ni les outils d'identité (tokens, scopes) ni la surveillance réseau ne suffisent, car la majorité des serveurs sont des processus locaux communiquant par pipe (stdio) invisibles sur le réseau.
+- Un inventaire pertinent doit être recueilli au niveau de l'endpoint, par machine et par utilisateur, et rafraîchi en continu plutôt que capturé une seule fois.
 
 ## Analyse approfondie
-**Une question simple sans réponse disponible.** Demander « quels serveurs MCP nos développeurs ont-ils connectés ? » semble anodin, mais aucun canal habituel ne permet d'y répondre : pas de journal SSO (la plupart des serveurs MCP tournent en local sans jamais s'authentifier auprès d'un système central), pas de trace d'achat (rien n'a été acheté), pas de console d'admin (le protocole n'en définit aucune), pas de signature réseau (un serveur en stdio communique via un simple pipe entre deux processus sur la même machine). La seule chose qui existe est un fichier JSON édité à la main dans le répertoire personnel d'un développeur — posé sur un poste de travail, hors de portée des outils classiques de gouvernance.
+**Poser la question de façon classique ne donne aucune réponse**
+Demander « quels serveurs MCP nos développeurs ont-ils connectés ? » semble une question raisonnable, mais toutes les méthodes habituelles pour y répondre échouent. Il n'y a pas de journal SSO, car la plupart des serveurs MCP démarrent localement sans jamais s'authentifier auprès d'un système contrôlé par l'entreprise. Il n'y a pas de trace d'achat, puisque rien n'a été acheté. Il n'y a pas de console d'administration, car le protocole n'en définit aucune. Il n'y a pas de signature réseau, car un serveur en mode stdio communique via un tube (pipe) entre deux processus sur la même machine. Ce qui existe réellement, c'est un fichier JSON dans le répertoire personnel d'un développeur, édité à la main. Ce fichier constitue la seule source de vérité, et il se trouve sur un ordinateur portable.
 
-**Une configuration éclatée par client.** Chaque client garde sa propre déclaration de serveurs, sans lien avec les autres : `claude_desktop_config.json` pour Claude Desktop, `.cursor/mcp.json` (au niveau utilisateur ou projet) pour Cursor, `.mcp.json` plus une configuration utilisateur pour Claude Code, et des entrées MCP dans les paramètres de l'éditeur pour VS Code/Copilot. Lire un seul de ces fichiers ne renseigne que sur un client, sur une machine. Répondre à la question au niveau de l'organisation suppose de les agréger tous, sur tous les postes, en continu — car la réponse change dès qu'un fichier est modifié.
+**Où se trouve réellement la configuration**
+Chaque client conserve sa propre configuration, ce qui signifie qu'un développeur utilisant trois clients a trois inventaires distincts qui s'ignorent mutuellement :
 
-**Le nom d'un serveur ne contraint rien.** L'erreur la plus fréquente dans un premier inventaire consiste à se contenter de collecter des noms de serveurs. Ce nom est un simple libellé choisi par l'auteur de la configuration : il n'est ni validé, ni enregistré dans un registre, ni lié techniquement à ce que le serveur fait réellement. Une entrée nommée « docs » peut très bien lancer n'importe quel exécutable avec n'importe quels arguments. L'article rapproche ce constat d'un biais déjà documenté dans Claude Code, la « confiance indexée par le nom » : ce que l'utilisateur approuve et ce qui s'exécute réellement ne sont reliés que par une chaîne de caractères, et cette chaîne peut être choisie par un attaquant.
+| Client | Configuration |
+|---|---|
+| Claude Desktop | `claude_desktop_config.json`, dans le répertoire application-support de l'utilisateur |
+| Cursor | `.cursor/mcp.json`, au niveau utilisateur ou projet |
+| Claude Code | `.mcp.json` dans le projet, plus une configuration au niveau utilisateur |
+| VS Code / Copilot | entrées MCP intégrées aux paramètres de l'éditeur |
 
-Ce qui compte vraiment, c'est la commande résolue, et plus précisément quatre éléments :
-- **Le point d'entrée** : un serveur dont l'entrypoint pointe vers `/bin/bash`, `/bin/sh` ou `python -c` donne de fait un accès shell à l'agent connecté sur la machine — un risque visible dès lors qu'on lit effectivement la configuration.
-- **Le paquet et la version réellement exécutée** : la plupart des serveurs MCP se lancent via `npx` avec un tag flottant, résolu au moment du démarrage. Le code qui tourne aujourd'hui est celui que le registre a servi le plus récemment, pas celui qui a été revu par quelqu'un — un parallèle est fait avec un cas déjà traité par les auteurs concernant le serveur MCP de Figma, où un correctif de sécurité (CVE) a été appliqué silencieusement via une version mineure que la plupart des utilisateurs ont reçue sans jamais en décider.
-- **Les identifiants** : clés API et tokens sont couramment transmis aux serveurs MCP via des variables d'environnement, dans le même fichier de configuration. Un inventaire qui note les noms de serveurs sans noter ce qui leur a été confié passe à côté de l'information la plus sensible pour une équipe sécurité.
-- **Le transport** : stdio et HTTP présentent une exposition très différente, comme l'ont montré les trois CVE du serveur MCP n8n — toutes nécessitaient le mode HTTP multi-tenant, aucune n'affectait un déploiement stdio local.
+Lire l'un de ces fichiers ne renseigne que sur un client, sur une machine. La question organisationnelle nécessite de les agréger tous, sur toutes les machines, en continu — car la réponse change dès qu'un fichier est modifié.
 
-**Pourquoi c'est un problème d'endpoint, pas d'identité ni de réseau.** Il est tentant de traiter ce sujet comme un problème d'identité, à résoudre avec des tokens et des scopes : cela fonctionne pour les serveurs distants adossés à OAuth, mais ne dit rien de la majorité des cas, des processus locaux lancés depuis un fichier de configuration. Il est tout aussi tentant d'en faire un problème réseau, ce qui échoue pour la même raison que la détection des LLM locaux échoue au niveau réseau : un serveur en stdio dialogue avec son client via un pipe, sans jamais franchir une interface observable. Le fichier de configuration, le processus et les identifiants sont tous sur le poste de travail. Toute réponse qui ne lit pas directement l'endpoint relève de l'inférence — et l'inférence, c'est le meilleur moyen de rapporter en toute confiance un chiffre faux.
+**Un nom de serveur ne garantit rien**
+L'erreur la plus fréquente dans un premier inventaire est de se contenter de collecter les noms des serveurs. Le nom est un simple libellé choisi par celui qui a écrit la configuration : il n'est ni validé, ni enregistré, ni lié à ce que le serveur fait réellement. Une entrée appelée « docs » peut lancer n'importe quel exécutable avec n'importe quel argument. C'est le même défaut que celui déjà documenté dans Claude Code sous le nom de « confiance indexée par le nom » : ce que l'utilisateur approuve et ce qui s'exécute réellement ne sont reliés que par une chaîne de caractères, et cette chaîne peut être choisie par un attaquant.
 
-**Ce qu'un inventaire sérieux doit enregistrer**, par machine et par utilisateur, de façon rafraîchie en continu plutôt que capturée une fois :
+Ce qui compte donc, c'est la commande résolue, en particulier :
+
+- **Le point d'entrée.** Un serveur dont le point d'entrée est `/bin/bash`, `/bin/sh` ou `python -c` donne à l'agent connecté un accès shell sur le poste. Ce n'est pas un risque subtil, et il est parfaitement visible dans la configuration — encore faut-il la lire.
+- **Le package et la version réellement exécutée.** La plupart des serveurs MCP démarrent via `npx` avec un tag flottant, résolu au lancement. Le code exécuté aujourd'hui est celui que le registre a servi le plus récemment, pas celui qui a été revu par quelqu'un. L'article de Repello sur le serveur MCP Figma illustre ce cas concret, où une CVE a été corrigée dans une version mineure que la plupart des utilisateurs ont reçue sans jamais prendre de décision explicite.
+- **Les identifiants.** Les clés API et jetons sont couramment transmis aux serveurs MCP via des variables d'environnement, dans le même fichier de configuration. Un inventaire qui note les noms de serveurs sans noter ce qui leur a été confié passe à côté de l'élément le plus critique pour une équipe sécurité.
+- **Le transport.** stdio et HTTP présentent des surfaces d'exposition très différentes, comme l'ont montré les trois CVE du serveur MCP n8n — toutes trois nécessitaient le mode HTTP multi-tenant, et aucune n'affecte un déploiement stdio local.
+
+**Pourquoi c'est un problème d'endpoint**
+Il est tentant de traiter ce sujet comme un problème d'identité, à résoudre avec des jetons et des scopes. Cela aide pour les serveurs distants authentifiés via OAuth, mais ne résout rien pour la majorité des cas, qui sont des processus locaux lancés depuis un fichier de configuration. Il est tout aussi tentant d'en faire un problème réseau. Cela échoue pour la même raison que la détection des LLM locaux échoue au niveau réseau : un serveur stdio dialogue avec son client via un tube, sans jamais traverser une interface observable. La configuration est sur l'endpoint. Le processus est sur l'endpoint. Les identifiants sont sur l'endpoint. Toute réponse qui ne lit pas l'endpoint relève de la déduction — et la déduction, c'est ainsi qu'on finit par annoncer avec assurance un chiffre erroné.
+
+**Ce qu'un véritable inventaire doit enregistrer**
+Par machine, par utilisateur, et actualisé en continu plutôt que capturé une seule fois :
 - quels clients agents sont installés et actifs ;
 - quels serveurs MCP chaque client déclare ;
 - le point d'entrée résolu pour chaque serveur déclaré ;
-- le paquet et la version effectivement en cours d'exécution, et non celle nominalement épinglée ;
+- le package et la version réellement en cours d'exécution, et non celle nominalement épinglée ;
 - les identifiants et secrets transmis via l'environnement ;
 - le transport utilisé, et pour les serveurs HTTP, leur surface d'exposition.
 
-L'article souligne que cette liste n'a rien d'exotique : il s'agit d'une poignée de fichiers et d'une table de processus, données qu'un agent d'endpoint collecte déjà pour d'autres besoins. Le manque, selon lui, n'est pas technique mais organisationnel — personne ne pose encore ces questions-là à l'agent d'endpoint. Pour évaluer ensuite la sécurité de serveurs spécifiques une fois l'inventaire établi, l'article renvoie vers un guide de sécurité MCP et des revues par éditeur (dont GitHub), qui détaillent ce que chaque serveur peut concrètement atteindre.
+Cette liste n'a rien d'exotique : ce sont quelques fichiers et une table des processus, soit exactement le type de données qu'un agent d'endpoint collecte déjà pour d'autres besoins. Le problème, c'est que personne ne lui a encore posé ces questions. Pour évaluer la sécurité d'un serveur donné une fois l'inventaire établi, le guide de sécurité MCP de Repello traite de l'évaluation, et ses analyses par éditeur — dont GitHub — détaillent ce que chaque serveur peut atteindre.
 
-**FAQ reprise dans l'article.** Comment obtenir une visibilité sur les connexions MCP des employés ? En lisant les fichiers de configuration des clients, seule source de vérité fiable, via un outillage d'endpoint capable de les parcourir, de résoudre ce que chaque entrée lance réellement et d'en centraliser le reporting. Existe-t-il une console d'admin pour MCP ? Non — le protocole a été conçu pour un client local servant un utilisateur local, sans plan de contrôle organisationnel, workflow d'approbation ni visibilité pour quiconque hormis l'utilisateur ; ajouter un serveur est un simple edit de texte, sans validation requise. Où sont stockées les configurations ? Dans des fichiers propres à chaque client, dans le répertoire personnel de l'utilisateur (détail des chemins ci-dessus), sans lien entre eux. Pourquoi une liste de noms ne suffit-elle pas ? Parce que le nom est choisi librement par l'auteur du fichier et ne contraint rien ; seule la commande résolue (binaire, paquet, version, identifiants) importe. À quelle fréquence cet inventaire change-t-il ? En continu et sans événement visible : installer un serveur MCP se résume à un edit de texte suivi d'un redémarrage du client, sans ticket, ni achat, ni connexion associée — d'où la nécessité d'une mesure permanente plutôt que d'un audit ponctuel.
+**FAQ**
 
-L'article se conclut par un message promotionnel : l'inventaire existe déjà, dispersé dans des fichiers JSON sur chaque poste, mais personne ne le centralise ; l'outil « Workstation Lens » de Repello AI propose de lire ces fichiers à l'échelle du parc, de résoudre ce que chaque serveur lance réellement, de signaler les points d'entrée pointant vers un shell et de rapporter les versions effectivement en cours d'exécution.
+*Comment obtenir de la visibilité sur les connexions aux serveurs MCP effectuées par les employés depuis leurs ordinateurs portables ?*
+En lisant les fichiers de configuration des clients, seule source de vérité fiable. Les serveurs MCP sont déclarés dans des fichiers JSON propres à chaque utilisateur sur chaque machine — Claude Desktop, Cursor, VS Code et Claude Code ont chacun le leur — et il n'existe ni registre central, ni console d'administration, ni journal SSO à interroger à la place. Seul un outil d'endpoint capable de lire ces fichiers, de résoudre ce que chaque entrée lance réellement, et de centraliser le rapport, permet d'obtenir un inventaire véritable.
+
+*Existe-t-il une console d'administration pour les serveurs MCP ?*
+Non, et il s'agit d'un problème structurel plutôt que d'une lacune laissée par un éditeur en particulier. MCP a été conçu pour qu'un client local lance un serveur local pour le compte d'un seul utilisateur. Rien dans le protocole ne définit un plan de contrôle organisationnel, un flux d'approbation, ni un moyen pour quelqu'un d'autre que l'utilisateur de voir ce qui est connecté. Ajouter un serveur est une simple modification de texte, sans approbation requise.
+
+*Où sont stockées les configurations des serveurs MCP ?*
+Dans des fichiers propres à chaque client, situés dans le répertoire personnel de l'utilisateur. Claude Desktop utilise `claude_desktop_config.json`, Cursor lit `.cursor/mcp.json` au niveau utilisateur ou projet, Claude Code utilise `.mcp.json` avec une configuration complémentaire au niveau utilisateur, et VS Code conserve ses entrées MCP dans ses paramètres. Un développeur utilisant trois clients dispose donc de trois inventaires distincts, sans lien entre eux.
+
+*Pourquoi une simple liste de noms de serveurs n'est-elle pas suffisante ?*
+Parce que le nom est choisi par l'auteur de la configuration et ne garantit rien. Une entrée nommée « docs » peut lancer n'importe quel exécutable avec n'importe quel argument. Ce qui compte, c'est la commande résolue — le binaire, le package et sa version, ainsi que les variables d'environnement et identifiants qui lui sont transmis. Un serveur dont le point d'entrée pointe vers un shell donne un accès shell à l'agent connecté.
+
+*Que doit réellement enregistrer un inventaire MCP ?*
+Par machine et par utilisateur : quels clients sont installés, quels serveurs chacun déclare, le point d'entrée résolu de chaque serveur, la version du package réellement exécutée plutôt que celle nominalement épinglée, les identifiants transmis via les variables d'environnement, et le transport utilisé. Les versions comptent particulièrement, car la plupart des serveurs démarrent via `npx` avec un tag flottant, si bien que le code exécuté aujourd'hui est celui que le registre a servi le plus récemment.
+
+*À quelle fréquence cet inventaire change-t-il ?*
+En continu, et sans aucun événement visible autrement. Installer un serveur MCP consiste en une modification de texte suivie d'un redémarrage du client : pas de ticket, pas d'étape d'achat, pas de trace de connexion. Un inventaire capturé une seule fois n'est que la photographie d'une configuration potentiellement déjà obsolète, d'où la nécessité d'une mesure permanente plutôt que d'un audit ponctuel.
+
+**Lire les fichiers de configuration à l'échelle du parc**
+L'inventaire existe bel et bien : il est dispersé dans des fichiers JSON propres à chaque utilisateur, sur chaque poste, et rien ne le centralise. L'outil Workstation Lens de Repello lit ces fichiers à l'échelle du parc, résout ce que chaque serveur lance réellement, signale les points d'entrée pointant vers un shell, et rapporte les versions effectivement en cours d'exécution.
 
 ## Pourquoi ça compte
-Avec l'adoption rapide du MCP dans les outils de développement assistés par IA, cet article met en lumière un vrai trou de gouvernance : les équipes sécurité pilotent aujourd'hui des risques (shells exposés, identifiants en clair, dépendances non auditées) qu'elles ne savent même pas lister, ce qui en fait un signal d'alerte pertinent pour toute veille sur la sécurité des agents IA en entreprise.
+Ce texte met en lumière un angle mort de sécurité largement sous-estimé dans l'adoption rapide de MCP en entreprise : l'absence de gouvernance centralisée transforme chaque poste de développeur en source potentielle de shadow IT et de supply-chain risk. Pour une veille tech, c'est un signal fort que la sécurisation des agents IA doit désormais passer par l'endpoint, au même titre que l'EDR classique.

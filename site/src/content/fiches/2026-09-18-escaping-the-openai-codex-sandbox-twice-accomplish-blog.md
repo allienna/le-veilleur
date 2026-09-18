@@ -2,58 +2,69 @@
 title: "Escaping the OpenAI Codex sandbox, twice — Accomplish Blog"
 date: 2026-09-18
 url: "https://tracking.tldrnewsletter.com/CL0/https:%2F%2Faccomplish.ai%2Fblog%2Fescaping-the-openai-codex-sandbox-twice%2F%3Futm_source=tldrdev/1/010001a0af146874-dc9a6ee3-a5dc-4222-8676-ccbdd199480a-000000/SdlkrtC-N_9dNr4A4eNbsH71tnZ5yCInxizITH6zuXg=452"
-authors: ["Accomplish"]
-keywords: ["sandbox", "OpenAI Codex", "vulnérabilité", "isolation VM", "agents IA", "exécution de code"]
+keywords: ["sandbox", "Codex", "OpenAI", "sécurité des agents IA", "vulnérabilité", "isolation"]
 theme: "Sécurité"
 tone: "research"
 used_in: ["2026-09-18"]
 ---
 
 ## Résumé
-
-Accomplish, éditeur d'un outil qui isole les agents IA dans des machines virtuelles, a découvert et signalé à OpenAI, le 12 août 2026, deux méthodes distinctes pour s'échapper du bac à sable (sandbox) de Codex ; les deux failles ont été corrigées en moins de huit jours. La première, baptisée « Overpatch », détourne l'outil `apply_patch` de la CLI Codex pour obtenir un accès en écriture à l'ensemble du disque en mode `workspace-write`, sans la moindre invite d'approbation. La seconde, « Heapjack », exploite le serveur MCP `node_repl` installé par défaut avec Codex Desktop : le jeton secret censé séparer le code de confiance du code non fiable réside dans une mémoire partagée (le tas V8), ce qui permet une exécution de commande hors sandbox même dans le mode le plus strict, `read-only`. L'article conclut que les deux bugs partagent le même défaut structurel — le mécanisme de contrôle s'exécute à l'intérieur du périmètre qu'il est censé protéger — ce qui motive l'architecture d'Accomplish, qui fait tourner l'agent entier dans une VM externe.
+L'équipe d'Accomplish a découvert et signalé à OpenAI, le 12 août 2026, deux failles permettant d'échapper au bac à sable (sandbox) de Codex, corrigées en moins de huit jours. La première, baptisée « Overpatch », exploite l'outil `apply_patch` du Codex CLI pour obtenir un accès en écriture à tout le disque en mode agent normal, sans validation. La seconde, « Heapjack », exploite un tas mémoire V8 partagé dans l'outil `node_repl` installé par Codex Desktop pour extraire un jeton secret et forger des requêtes non autorisées, aboutissant à une exécution de commande hors bac à sable même en mode `read-only`. L'article se conclut en expliquant comment ces découvertes ont motivé l'architecture de leur propre produit, Accomplish, qui isole les agents dans des machines virtuelles complètes.
 
 ## Points clés
-
-- Deux failles de sandbox trouvées dans OpenAI Codex, signalées le 12 août 2026 et corrigées par OpenAI en moins de huit jours.
-- **Overpatch** : `apply_patch` accorde par erreur un accès en écriture au dossier *parent* de chaque chemin mentionné dans un patch ; en visant `/tmp`, on obtient un accès en écriture à la racine du système de fichiers, ce qui permet d'écrire un `.zshrc` malveillant exécuté dès l'ouverture du terminal suivant.
-- **Heapjack** : le serveur `node_repl` fait cohabiter code de confiance et code non fiable dans le même processus Node / isolat V8 ; le jeton secret qui les distingue peut être extrait d'un instantané mémoire (`v8.getHeapSnapshot()`), ce qui permet de forger des requêtes vers le processus Rust parent, non sandboxé lui.
-- Heapjack fonctionne même en mode `read-only`, le plus restrictif, et sans aucune invite d'approbation à l'écran — le simple fait d'ouvrir un dépôt cloné suffit à donner à son auteur une exécution de commande hors sandbox.
-- Le jeton forgé permet notamment de lancer des applications via la commande système `open`, de se connecter à des sockets Unix arbitraires (dont potentiellement un démon Docker), et de modifier le fichier de configuration global de Codex.
-- Cause racine commune aux deux bugs : le composant chargé d'appliquer les règles de sécurité tourne à l'intérieur même du périmètre qu'il doit surveiller, ce qui a conduit Accomplish à concevoir son propre outil autour d'une VM complète, avec des identifiants réels jamais exposés à l'agent et un proxy réseau côté hôte hors de portée de ce dernier.
+- **Overpatch** : une ligne anodine dans un patch (`apply_patch`) élargit l'autorisation d'écriture au dossier parent de n'importe quel chemin cité, permettant d'atteindre `/` en nommant `/tmp`.
+- Cette faille permet d'écrire dans `.zshrc` via un lien symbolique, assurant une exécution de code hors bac à sable au prochain terminal ouvert.
+- **Heapjack** : le jeton secret séparant le code de confiance (OpenAI) du code non fiable (l'agent) réside dans le même tas V8, accessible via `v8.getHeapSnapshot()`.
+- Une fois le jeton extrait, du code non fiable peut forger des requêtes sur le pipe stdout partagé, obtenant une exécution de commande non sandboxée même en mode `read-only`, le niveau de sécurité le plus strict.
+- Le point commun aux deux failles : le mécanisme chargé d'appliquer les règles de sécurité s'exécutait à l'intérieur même de l'environnement qu'il était censé contraindre.
+- Ce constat a conduit Accomplish à choisir une isolation par VM complète, avec identifiants réels jamais exposés au invité et trafic sortant filtré par un proxy côté hôte.
 
 ## Analyse approfondie
+Nous avons trouvé deux moyens de sortir du bac à sable d'OpenAI Codex, et nous avons signalé les deux à OpenAI le 12 août 2026. Les deux ont été corrigées en moins de huit jours.
 
-**Overpatch — contourner le mode `workspace-write`**
+La première se trouve dans le Codex CLI open source. Une ligne supplémentaire dans un patch donne à l'outil de patch un accès en écriture à tout le disque, en mode agent normal, sans invite d'approbation. Nous l'appelons **Overpatch**.
 
-En mode `workspace-write`, l'agent Codex n'est censé pouvoir écrire qu'à l'intérieur du dossier de travail : toute tentative d'écrire dans `$HOME` via une commande shell classique est refusée. Les chercheurs d'Accomplish ont néanmoins réussi à faire écrire l'agent en dehors de ce périmètre, en passant par l'outil `apply_patch` fourni par le harnais Codex pour l'édition de fichiers.
+La seconde se trouve dans l'outil JavaScript installé par Codex Desktop. Le bac à sable fonctionnait, mais le secret qui distinguait le code de confiance du code non fiable se trouvait dans une mémoire que le code non fiable pouvait lire. Nous l'appelons **Heapjack**. Elle s'exécute en mode `read-only`, où l'agent est censé ne rien pouvoir écrire, et elle se termine par une exécution de commande hors du bac à sable.
 
-Le bug tient au fait que cet outil accorde un droit d'écriture non pas sur le fichier ciblé, mais sur le *dossier parent* de chaque chemin mentionné dans le patch. En incluant `/tmp` dans la liste des chemins visés, le patch obtient de fait un droit d'écriture sur la racine du système de fichiers (`/`).
+### Overpatch
 
-Le patch malveillant contient deux modifications : la première ajoute une ligne au fichier `.zshrc` en passant par un lien symbolique pointant vers `$HOME` ; la seconde cible `/tmp` sans y apporter de changement réel — cette opération échoue nécessairement, puisqu'on ne peut pas remplacer un dossier par un fichier, mais elle sert uniquement à élargir artificiellement le périmètre d'écriture autorisé. Sans cette seconde ligne, la modification du `.zshrc` est refusée. Une fois ce fichier modifié, il s'exécute sans aucune restriction sandbox au prochain lancement d'un terminal.
+En mode `workspace-write`, l'agent n'est autorisé à écrire qu'à l'intérieur du dossier de l'espace de travail (workspace). Une commande shell qui tente d'accéder à `$HOME` est refusée.
 
-**Heapjack — un secret partagé dans la même mémoire**
+Nous avons réussi à faire écrire `apply_patch` là-bas malgré tout.
 
-À l'installation, Codex Desktop inscrit automatiquement un bloc `[mcp_servers.node_repl]` dans le fichier de configuration global `~/.codex/config.toml`, sans option pour refuser cet ajout ni pour le désactiver ensuite. C'est ce qui explique que même la CLI Codex standard bénéficie (ou souffre) de cet outil.
+`apply_patch` est un outil que le harnais Codex donne à l'agent pour éditer des fichiers. Le bug est qu'il accorde un accès en écriture au dossier parent de chaque chemin présent dans le patch. Nommez `/tmp` et il accorde un accès en écriture à `/`.
 
-Ce serveur `node_repl` est un programme natif écrit en Rust, non sandboxé : il peut ouvrir des applications, se connecter à des sockets Unix et modifier le fichier de configuration. Il démarre un processus Node à l'intérieur du sandbox Codex, de sorte que tout le code JavaScript exécuté par l'agent reste, en apparence, confiné. Mais ce processus Node unique héberge deux contextes V8 (`vm`) distincts : l'un, de confiance, exécute le code d'OpenAI et reçoit un jeton secret ; l'autre, non fiable, exécute le code de l'agent et n'y a pas accès. Ce jeton, généré aléatoirement à chaque exécution, est la seule preuve que présente le contexte de confiance pour s'authentifier.
+Le patch qui réalise l'écriture comporte deux modifications. L'une ajoute une ligne à `.zshrc` via un lien symbolique pointant vers `$HOME`. L'autre nomme `/tmp` et ne fait rien. Cette modification échoue, car on ne peut pas écrire un fichier par-dessus un dossier. Elle ne figure dans le patch que pour élargir l'autorisation accordée. Retirez cette ligne et l'écriture est refusée.
 
-Or, un seul processus Node signifie un seul isolat V8, donc un seul tas mémoire partagé par les deux contextes — et le jeton n'est qu'une chaîne de caractères stockée dans ce tas. Le code non fiable peut donc capturer un instantané complet du tas (`v8.getHeapSnapshot()`) et tester systématiquement toutes les chaînes ayant la forme d'un UUID : un mauvais jeton renvoie une erreur « non autorisé », tandis qu'un bon jeton associé à un argument invalide renvoie une véritable erreur de validation — ce qui permet de confirmer par élimination la valeur correcte.
+Écrivez dans `.zshrc`, et le prochain terminal que vous ouvrirez l'exécutera hors du bac à sable.
 
-Le processus Node sandboxé communique avec le processus Rust parent en écrivant des requêtes JSON, ligne par ligne, sur sa sortie standard (fd 1) — un canal partagé par les deux contextes. Le code non fiable peut donc y injecter directement ses propres requêtes, dans le même format. Le processus parent les lit, vérifie le jeton, et exécute l'action demandée sans se soucier de savoir quel contexte l'a réellement émise : toute la frontière de confiance repose sur la possession de cette seule chaîne de caractères.
+### Heapjack
 
-Ce processus parent peut notamment invoquer la commande système `open`, ce qui permet à `launchd` de démarrer une application entièrement hors du contrôle et de l'arborescence de processus de Codex — c'est ce qu'a démontré la preuve de concept des chercheurs. Le même jeton permet aussi de se connecter à n'importe quel socket Unix, dont, par exemple, celui d'un démon Docker, et donne accès à un outil de modification du fichier de configuration global `~/.codex/config.toml`.
+Codex Desktop écrit un bloc `[mcp_servers.node_repl]` dans le fichier global `~/.codex/config.toml` lors de l'installation. Aucune option d'adhésion (opt-in), aucun paramètre pour le désactiver. C'est pourquoi le simple CLI `codex` hérite aussi de cet outil.
 
-Tout ceci fonctionne alors même que l'agent tourne en mode `read-only`, le réglage de sandbox le plus strict, où il n'est en principe autorisé à rien écrire — et sans qu'aucune invite d'approbation ne s'affiche à aucun moment. Concrètement : il suffit d'ouvrir un dépôt cloné dans Codex en mode `read-only` et de lui poser une question pour que la personne ayant écrit ce dépôt obtienne une exécution de commande non sandboxée, silencieuse, équivalente à ce qu'elle obtiendrait en désactivant purement et simplement le sandbox.
+L'outil est un programme natif écrit en Rust, hors bac à sable. Il ouvre des applications, se connecte à des sockets Unix, écrit le fichier de configuration. Il démarre un processus Node via le bac à sable de Codex, de sorte que tout le JavaScript s'exécute dans le bac à sable. À l'intérieur de cet unique processus Node se trouvent deux contextes `vm` de V8. Le contexte de confiance contient le propre code d'OpenAI et reçoit le jeton secret. Le contexte non fiable exécute le code de l'agent et ne le reçoit pas.
 
-**Comment Accomplish a été conçu**
+Le contexte de confiance prouve qu'il est bien le contexte de confiance grâce à un jeton aléatoire, généré à nouveau à chaque exécution.
 
-Les deux failles partagent une même structure : le composant chargé de faire respecter les règles de sécurité se trouve lui-même à l'intérieur du périmètre qu'il est censé surveiller. `apply_patch` déterminait ses propres autorisations à partir d'une entrée qu'on lui fournissait ; `node_repl` conservait le secret séparant code de confiance et code non fiable dans la mémoire même de ce code non fiable. Dans les deux cas, le sandbox recevait, de l'intérieur, l'instruction de laisser passer quelque chose qu'il aurait dû bloquer.
+Un seul processus Node, un seul isolat V8, un seul tas (heap) partagé par les deux contextes. Le jeton est une chaîne de caractères dans ce tas.
 
-C'est cette observation qui a guidé la conception d'Accomplish : l'ensemble de l'agent — le modèle, le shell, git, et tous les processus que ceux-ci démarrent — s'exécute à l'intérieur d'une machine virtuelle complète. Les identifiants réels de l'utilisateur n'entrent jamais dans cette VM : l'agent ne manipule que des identifiants de substitution (placeholders), et tout le trafic sortant transite par un proxy situé côté hôte, que l'agent ne peut ni atteindre ni reconfigurer. Tout ce qui s'exécute dans la VM invitée est considéré comme non fiable, y compris les processus tournant en `root`, puisqu'aucun composant décidant de ce qui est autorisé ne s'exécute à l'intérieur de cet environnement.
+Le code non fiable prend un instantané du tas (`v8.getHeapSnapshot()`) et essaie toutes les chaînes ayant la forme d'un UUID. Un mauvais jeton renvoie *not authorized*. Un bon jeton accompagné d'un argument invalide renvoie une véritable erreur de validation.
 
-Rejouée sous Accomplish, la faille Overpatch permettrait bien au patch d'écrire où il veut, mais uniquement à l'intérieur de la VM ; de même, Heapjack pourrait bien forger une requête et lancer une application, mais toujours confinée à la VM. Dans les deux cas, aucune des deux attaques n'atteint la machine réelle de l'utilisateur.
+Le processus Node en bac à sable envoie ses requêtes à ce parent Rust sous forme de lignes JSON écrites sur le descripteur de fichier 1, sa sortie standard (stdout). Un seul tube (pipe), partagé par les deux contextes. Le code non fiable écrit sa propre requête sur ce tube, dans le même format. Le processus parent natif la lit, vérifie le jeton, et effectue le travail demandé. Connaître cette seule chaîne de caractères constitue toute la frontière de sécurité.
+
+Le parent exécute la commande système `open`, de sorte que launchd démarre l'application hors du bac à sable, en dehors de l'arborescence de processus de Codex. C'est ce qu'a fait notre preuve de concept. Le même jeton permet de se connecter à n'importe quel socket Unix, le socket du démon Docker étant le candidat le plus évident. Il expose également un outil permettant d'éditer le fichier global `~/.codex/config.toml`.
+
+Tout cela s'est déroulé en mode `read-only`, le mode de bac à sable le plus strict, où l'agent est censé ne rien pouvoir écrire. Codex n'a jamais demandé d'approbation.
+
+Ouvrez un dépôt cloné dans Codex en mode bac à sable `read-only`, posez-lui une question, et l'auteur de ce dépôt obtient une exécution de commande hors du bac à sable, sans invite et sans rien afficher à l'écran. Exactement le même accès que s'il avait désactivé le bac à sable et exécuté lui-même son script.
+
+### Comment nous avons construit Accomplish
+
+Les deux failles ont la même forme. Ce qui assurait l'application des règles se trouvait à l'intérieur même de ce qui était censé être contraint. `apply_patch` calculait ses propres permissions à partir des données qu'on lui fournissait. `node_repl` conservait le secret séparant le code de confiance du code non fiable dans la même mémoire que ce code non fiable. Dans les deux cas, on a dit au bac à sable, depuis l'intérieur, de laisser passer quelque chose.
+
+C'est pourquoi Accomplish exécute l'agent entier à l'intérieur d'une VM : le modèle, bash, git, et tout processus que l'un d'eux démarre. Les véritables identifiants (credentials) n'entrent jamais dans la machine invitée (guest) ; l'agent travaille avec des placeholders, et le trafic sortant passe par un proxy sur l'hôte, que l'agent ne peut ni atteindre ni reconfigurer. Nous traitons tout ce qui se trouve dans la machine invitée comme non fiable, y compris root, car rien de ce qui décide ce qui est autorisé ne s'exécute à l'intérieur avec lui.
+
+Exécutez Overpatch sous Accomplish, et le patch écrit où bon lui semble, mais à l'intérieur de la VM. Exécutez Heapjack, et la requête forgée lance une application, mais à l'intérieur de la VM. Aucune des deux n'atteint votre ordinateur portable.
 
 ## Pourquoi ça compte
-
-Ce cas illustre un défaut structurel récurrent dans les harnais d'agents IA actuels — le contrôle de sécurité s'exécute dans le même espace de confiance que le code qu'il doit surveiller — et montre qu'une isolation par VM externe, plutôt qu'un sandbox logique interne, constitue une réponse plus robuste ; un point de vigilance direct pour toute équipe déployant des agents IA autonomes (Codex ou équivalents) sur du code non fiable.
+Ce cas illustre un problème structurel des sandbox d'agents IA : quand le mécanisme d'application des règles vit dans le même processus ou la même mémoire que le code non fiable qu'il doit contenir, la frontière de sécurité devient contournable de l'intérieur. À mesure que les agents de codage autonomes se généralisent, cette analyse plaide pour une isolation stricte au niveau machine (VM) plutôt que des sandbox applicatifs, un point de vigilance clé pour toute équipe déployant des agents IA sur du code non fié.
