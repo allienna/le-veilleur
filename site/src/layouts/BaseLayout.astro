@@ -67,6 +67,7 @@ const canonicalUrl = new URL(Astro.url.pathname, siteUrl).href;
 
         <nav class="hidden md:flex items-center gap-8" aria-label="Navigation principale">
           <a href={base} class="text-sm font-medium hover:text-primary transition-colors">Articles</a>
+          <a href={`${base}/podcasts`} class="text-sm font-medium hover:text-primary transition-colors">Podcast</a>
         </nav>
       </div>
       <div id="reading-progress" class="absolute bottom-0 left-0 h-1 bg-primary" style="width: 0%"></div>

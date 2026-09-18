@@ -31,3 +31,15 @@ variable "image_tag" {
   type        = string
   default     = "latest"
 }
+
+variable "podcast_enabled" {
+  description = "Ordinary, reversible operational toggle for the podcast step — static PODCAST_ENABLED env var on the Job (not a security break-glass)."
+  type        = bool
+  default     = true
+}
+
+variable "podcast_budget_amount_eur" {
+  description = "Monthly notify-only budget cap in EUR for the podcast feature, separate from and in addition to the kill-switch's budget_amount_eur."
+  type        = number
+  default     = 8
+}

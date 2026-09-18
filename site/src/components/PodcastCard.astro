@@ -1,0 +1,38 @@
+---
+interface Props {
+  title: string;
+  date: Date;
+  audioUrl: string;
+  durationSeconds?: number;
+}
+
+const { title, date, audioUrl, durationSeconds } = Astro.props;
+
+const formattedDate = date.toLocaleDateString('fr-FR', {
+  day: '2-digit',
+  month: 'long',
+  year: 'numeric',
+});
+
+function formatDuration(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remaining = Math.round(seconds % 60);
+  return `${minutes} min${remaining ? ` ${remaining.toString().padStart(2, '0')}s` : ''}`;
+}
+---
+
+<article class="flex flex-col bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300 p-5">
+  <div class="flex items-center gap-2 mb-3 text-xs text-slate-400">
+    <span>{formattedDate}</span>
+    {durationSeconds && <span>· {formatDuration(durationSeconds)}</span>}
+  </div>
+
+  <h2 class="text-lg font-bold text-slate-900 leading-snug mb-4">
+    {title}
+  </h2>
+
+  <audio controls preload="none" class="w-full" src={audioUrl}>
+    Votre navigateur ne prend pas en charge la lecture audio.
+    <a href={audioUrl}>Télécharger l'épisode</a>
+  </audio>
+</article>

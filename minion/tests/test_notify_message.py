@@ -9,6 +9,7 @@ from minion.generate.models import ArticleFrontmatter, GeneratedArticle
 from minion.ingest.models import ScrapedSource, SourceOutcome, SourceSet
 from minion.models import Run, RunStatus, RunStep, StepName
 from minion.notify.message import build_message
+from minion.podcast.models import PodcastArtifact
 from minion.publish.models import ImageArtifact
 
 DATE = "2026-06-01"
@@ -198,3 +199,26 @@ def test_share_linkedin_button_only_when_published() -> None:
     not_published = _run(RunStatus.failure, steps=steps, error="github: commit failed")
     _subject, body = build_message(not_published, {"article": _ARTICLE})
     assert "linkedin.com/sharing/share-offsite" not in body
+
+
+def test_podcast_link_shown_when_episode_available() -> None:
+    run = _run(RunStatus.success, steps=[_github_success()])
+    episode = PodcastArtifact(
+        date=DATE, title="T", audio_url="https://storage.googleapis.com/bucket/2026-06-01.mp3"
+    )
+    _subject, body = build_message(run, {"article": _ARTICLE, "podcast": episode})
+    assert "Écouter l'épisode" in body
+    assert "https://storage.googleapis.com/bucket/2026-06-01.mp3" in body
+
+
+def test_no_podcast_section_when_absent() -> None:
+    run = _run(RunStatus.success, steps=[_github_success()])
+    _subject, body = build_message(run, {"article": _ARTICLE})
+    assert "Écouter l'épisode" not in body
+
+
+def test_no_podcast_section_when_unavailable() -> None:
+    run = _run(RunStatus.success, steps=[_github_success()])
+    episode = PodcastArtifact(date=DATE, title="T", audio_url="")
+    _subject, body = build_message(run, {"article": _ARTICLE, "podcast": episode})
+    assert "Écouter l'épisode" not in body

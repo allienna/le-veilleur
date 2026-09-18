@@ -8,7 +8,7 @@ uv sync
 uv run python -m minion run --date 2026-09-01   # defaults to today
 ```
 
-## The nine steps
+## The ten steps
 
 | # | Step | What it does |
 |---|---|---|
@@ -21,6 +21,7 @@ uv run python -m minion run --date 2026-09-01   # defaults to today
 | 7 | `imagen` | Imagen 4 Fast via the Gemini API → PNG. On a moderation block: one softened rewrite, then ship without an image. |
 | 8 | `github` | Commit the image, the article markdown and the LinkedIn post through the GitHub Contents API. |
 | 9 | `fiches` | One per-source analysis per *cited* source, committed to the site. Non-blocking by design. |
+| 10 | `podcast` | A NotebookLM Enterprise "deep dive" audio overview from the same validated sources, uploaded to GCS and committed as a site entry. `PODCAST_ENABLED` toggle; non-blocking by design — soft-fails to a warning on any NotebookLM/GCS/commit failure. |
 
 Each step records `running` → terminal with timestamps; a raising step halts the run. A step may
 also end the run gracefully (`skipped`) or latch a warning that downgrades the final status to
@@ -44,6 +45,10 @@ Read at run time from Secret Manager (or plain environment variables locally):
 
 `ANTHROPIC_API_KEY` is deliberately absent — `secrets.py` raises at import if it is set. The
 agentic steps authenticate with `CLAUDE_CODE_OAUTH_TOKEN` only.
+
+The `podcast` step needs no secret of its own: it authenticates by impersonating the dedicated
+`podcast-sa` (`infra/podcast.tf`) from `minion-sa`'s own ambient Cloud Run credentials — no key
+material is stored for it.
 
 ## Checks
 

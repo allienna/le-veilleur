@@ -1,7 +1,10 @@
 # The Cloud Run Job (the Minion). Terraform owns the Job *shape*; the image tag is bumped
 # out-of-band by scripts/deploy-minion.sh (`gcloud run jobs update --image`), so `image` and the
-# client-metadata fields sit under ignore_changes. timeout=1200s is the 20-minute hard cap;
-# max_retries=0 — a failed run is not auto-retried, replay is a deliberate action.
+# client-metadata fields sit under ignore_changes. timeout=1800s is the 30-minute hard cap —
+# raised from 20 minutes to give the best-effort `podcast` step (up to an 18-minute bounded poll
+# for NotebookLM's audio-overview generation, config.PODCAST_GENERATION_TIMEOUT) room alongside
+# the other nine steps' typical duration, without shrinking the podcast step's budget to chase a
+# tighter ceiling; max_retries=0 — a failed run is not auto-retried, replay is a deliberate action.
 #
 # memory=1Gi is load-bearing, not a round number. At the Cloud Run default of 512Mi a 44-source
 # run was OOM-killed (signal 9) about five minutes into `generate`: the process is killed outright
@@ -17,7 +20,7 @@ resource "google_cloud_run_v2_job" "minion" {
     template {
       service_account = google_service_account.minion.email
       max_retries     = 0
-      timeout         = "1200s"
+      timeout         = "1800s"
 
       containers {
         image = "${var.region}-docker.pkg.dev/${var.project_id}/minion/minion:${var.image_tag}"
@@ -30,6 +33,13 @@ resource "google_cloud_run_v2_job" "minion" {
         env {
           name  = "PYTHONUNBUFFERED"
           value = "1"
+        }
+
+        # Ordinary, reversible feature toggle for the podcast step (infra/podcast.tf) — the
+        # Scheduler carries no request body/overrides, so this can only live statically here.
+        env {
+          name  = "PODCAST_ENABLED"
+          value = var.podcast_enabled ? "true" : "false"
         }
 
         resources {

@@ -1,0 +1,44 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PodcastCard from '../../components/PodcastCard.astro';
+import { getCollection } from 'astro:content';
+import { withinRetentionWindow } from '../../lib/podcastWindow';
+
+const base = import.meta.env.BASE_URL;
+
+const episodes = (await getCollection('podcasts'))
+  .filter((episode) => withinRetentionWindow(episode.data.date))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+---
+
+<BaseLayout title="Podcast">
+  <div class="w-full max-w-6xl px-6 py-12 mx-auto">
+    <h1 class="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">
+      Podcast
+    </h1>
+    <p class="text-lg text-slate-500 mb-12">
+      La revue du jour en version audio — un résumé généré chaque matin à partir des mêmes
+      sources que l'article, pour l'écouter en voiture. Les épisodes restent disponibles 30
+      jours.
+    </p>
+
+    {episodes.length === 0 ? (
+      <p class="text-slate-500">Aucun épisode disponible pour le moment.</p>
+    ) : (
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {episodes.map((episode) => (
+          <PodcastCard
+            title={episode.data.title}
+            date={episode.data.date}
+            audioUrl={episode.data.audioUrl}
+            durationSeconds={episode.data.durationSeconds}
+          />
+        ))}
+      </div>
+    )}
+
+    <p class="text-sm text-slate-400 mt-12">
+      Flux RSS pour votre application podcast : <a href={`${base}/podcast.xml`} class="text-primary underline">{base}/podcast.xml</a>
+    </p>
+  </div>
+</BaseLayout>

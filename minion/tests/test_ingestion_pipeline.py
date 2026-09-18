@@ -20,6 +20,7 @@ from minion.ingest.fakes import FakeGmailClient, FakeScraperClient
 from minion.ingest.models import Newsletter, ScrapedSource, SourceOutcome
 from minion.models import Run, RunStatus
 from minion.orchestrator import run_pipeline
+from minion.podcast.fakes import FakeAudioStorage, FakeNotebookLMClient
 from minion.publish.fakes import (
     FakeContentRepository,
     FakeImageGenerator,
@@ -65,11 +66,13 @@ def _run(gmail: FakeGmailClient, jina: FakeScraperClient, run_store, lock_store,
         FakePromptRewriter(),
         FakeContentRepository(),
         FakeFicheGenerateRunner(),
+        FakeNotebookLMClient(),
+        FakeAudioStorage(),
     )
     return run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=steps)
 
 
-def test_happy_path_succeeds_through_all_nine_steps(run_store, lock_store, clock) -> None:
+def test_happy_path_succeeds_through_all_ten_steps(run_store, lock_store, clock) -> None:
     urls = [f"https://x.com/{i}" for i in range(5)]
     final = _run(
         FakeGmailClient([_newsletter("a@x.com", urls)]),
@@ -79,7 +82,7 @@ def test_happy_path_succeeds_through_all_nine_steps(run_store, lock_store, clock
         clock,
     )
     assert final.status is RunStatus.success
-    assert len(final.steps) == 9
+    assert len(final.steps) == 10
     assert all(s.status is RunStatus.success for s in final.steps)
 
 

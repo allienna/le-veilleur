@@ -251,3 +251,41 @@ NOTIFY_TO_ADDRESS: str = "aurelien.allienne@gmail.com"
 # Where the Job runs (infra/job.tf) — used only to build a Cloud Logging console URL, no API call.
 CLOUD_RUN_REGION: str = "europe-west1"
 CLOUD_RUN_JOB_NAME: str = "minion"
+
+# --- Podcast: NotebookLM Enterprise audio overview ----------------------------------------
+# Best-effort, last in STEP_ORDER (see the fiches comment above) — never blocks the article.
+# Auth is by impersonating a dedicated SA (infra/podcast.tf), not a stored secret; see
+# minion/src/minion/podcast/_auth.py.
+
+# Ordinary, reversible ops toggle (infra/job.tf) read directly as an env var — not a secret, and
+# not gated behind the ANTHROPIC_API_KEY-style break-glass ritual (RUNBOOK.md §3c is a different
+# kind of exception; this is a plain feature flag).
+PODCAST_ENABLED_ENV_VAR: str = "PODCAST_ENABLED"
+
+PODCAST_LANGUAGE_CODE: str = "fr"
+PODCAST_NOTEBOOK_NAME_TEMPLATE: str = "{date}"  # mirrors the deprecated PoC's naming
+PODCAST_NOTEBOOK_PURGE_DAYS: int = 30
+
+# Deterministic given the project id + Terraform account_id (infra/podcast.tf) — no secret
+# material, so no Secret Manager round-trip needed.
+PODCAST_SA_EMAIL: str = "podcast-sa@veilleur-app.iam.gserviceaccount.com"
+PODCAST_BUCKET_NAME: str = "veilleur-app-podcast-audio"
+# TODO(verify against the real API response): confirm NotebookLM Enterprise's actual
+# audio-overview output container/codec (mp3/wav/ogg) — adjust the extension and the adapter's
+# upload Content-Type together if it is not MP3.
+PODCAST_AUDIO_OBJECT_TEMPLATE: str = "{date}.mp3"
+PODCAST_MD_PATH_TEMPLATE: str = "site/src/content/podcasts/{date}.md"
+
+# ~20 min is a quality target, not a guaranteed parameter — NotebookLM's default audio-overview
+# length varies with source volume. Pass it as a length/format hint to audioOverviews.create if
+# the (Pre-GA) API exposes one; TODO(verify against the real API docs).
+PODCAST_TARGET_DURATION: timedelta = timedelta(minutes=20)
+# Bounded synchronous poll for audioOverviews.create to finish, within the same Cloud Run Job run
+# (no cross-run state, no second scheduler). Raised from an initial 12 minutes to give a longer,
+# more qualitative episode room to render; infra/job.tf's Job timeout was raised to 1800s (30 min)
+# to match. Abandon cleanly past this — best-effort, per the fiches/imagen precedent.
+PODCAST_GENERATION_TIMEOUT: timedelta = timedelta(minutes=18)
+PODCAST_POLL_INTERVAL: timedelta = timedelta(seconds=15)
+
+# Run-level warning latched when the podcast step could not produce/publish an episode.
+PODCAST_UNAVAILABLE_WARNING: str = "podcast_unavailable"

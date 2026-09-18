@@ -194,6 +194,42 @@ exception:
 Prefer 3b whenever possible. Note the cost consequence: OAuth via the Max plan is metered against
 the subscription, an API key is billed per token and will move the monthly budget.
 
+### 3e. Podcast (NotebookLM Enterprise) — one-time setup
+
+The `podcast` step needs no OAuth re-consent (it authenticates via
+`google.auth.impersonated_credentials` against the dedicated `podcast-sa`, not a stored token), but
+it does need one-time, deliberate infra work before its first real run:
+
+1. **Watch for a 403 on first real run.** `podcast-sa` is granted `roles/discoveryengine
+   .notebookLmUser` ("Cloud NotebookLM User") — confirmed against
+   docs.cloud.google.com/iam/docs/roles-permissions/discoveryengine, but at project scope that
+   role only covers `notebooks.create`/`.list`, not `sources.*` or `audioOverviews.*`. This
+   assumes (unconfirmed — common elsewhere in this product family, not stated for this API) that
+   creating a notebook makes the creator its resource-level Owner automatically. If
+   `notebooklm.py`'s `_add_sources` or `_create_audio_overview` calls 403, edit
+   `google_project_iam_member.podcast_notebooklm_user` in `infra/podcast.tf` to
+   `roles/discoveryengine.notebookLmOwner` ("Cloud NotebookLM Admin") instead, which does carry
+   `sources.*`/`audioOverviews.*` at project scope.
+   Separately: no `discoveryengine.notebooks.delete` permission exists anywhere in that IAM
+   reference, so `purge_notebooks_older_than`'s cleanup call may be a no-op against a
+   non-existent endpoint — it fails closed (logs, returns 0, never breaks the run), but don't
+   assume the 30-day notebook cleanup is actually happening until you've confirmed a real delete
+   call succeeds; if it can't, the notebooks will simply accumulate unpurged (the GCS audio
+   files still get deleted on schedule regardless, since that's a bucket lifecycle rule, not
+   dependent on this call).
+2. **Verify public object access is sufficient** for podcast-app RSS enclosure fetches: once
+   `infra/podcast.tf`'s bucket exists, `curl -I` a test object at
+   `https://storage.googleapis.com/veilleur-app-podcast-audio/<object>` and confirm a 200 with a
+   sane `Content-Type`/`Accept-Ranges` — no CDN/signed-URL layer should be needed given the rest of
+   the site is already public and unauthenticated, but confirm rather than assume.
+3. `terraform apply` (after 1 and 2), then verify `roles/iam.serviceAccountTokenCreator` on
+   `podcast-sa` has propagated to `minion-sa` (IAM bindings can take up to a minute) before the
+   next scheduled run.
+4. To disable the whole feature without touching anything else, set `podcast_enabled = false` in
+   tfvars and re-apply (or, for a same-day change without redeploying Terraform,
+   `gcloud run jobs update minion --region=europe-west1 --update-env-vars=PODCAST_ENABLED=false`).
+   This is an ordinary, reversible toggle — unlike 3c, it does not need a PR.
+
 ## 4. Budget kill-switch operation
 
 - **What it does:** at 100% of the `budget_amount_eur` cap, the billing budget publishes
@@ -206,6 +242,11 @@ the subscription, an API key is billed per token and will move the monthly budge
 - **Disabling the kill-switch itself should go through a PR** — never remove `infra/killswitch.tf`
   or detach the budget out-of-band. It is the only thing standing between a runaway loop and the
   bill.
+- **A second, separate budget exists for the podcast feature alone** (`infra/podcast-budget.tf`,
+  `google_billing_budget.podcast_cap`, low threshold, default 8 EUR/mo): it is intentionally
+  **notify-only** and never attached to the kill-switch's Pub/Sub topic or function, so it never
+  pauses the Scheduler. If you see two separate budget-threshold emails, this is expected — one is
+  the pause trigger, the other is an early-warning heads-up on the podcast feature alone.
 
 ## 5. Recovery — replay a missed or failed day
 

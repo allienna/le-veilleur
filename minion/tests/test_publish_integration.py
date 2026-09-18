@@ -1,6 +1,6 @@
 """End-to-end: the full fake pipeline, plus a gated real Imagen/GitHub smoke.
 
-The fake e2e drives the whole nine-step pipeline through `run_pipeline` with every external
+The fake e2e drives the whole ten-step pipeline through `run_pipeline` with every external
 boundary faked, proving the "publishable article" path: the article, its hero image and the
 LinkedIn post are all committed, at the paths the Astro site actually reads.
 
@@ -23,6 +23,7 @@ from minion.ingest.fakes import FakeGmailClient, FakeScraperClient
 from minion.ingest.models import Newsletter
 from minion.models import RunStatus
 from minion.orchestrator import run_pipeline
+from minion.podcast.fakes import FakeAudioStorage, FakeNotebookLMClient
 from minion.publish.fakes import FakeContentRepository, FakeImageGenerator, FakePromptRewriter
 from minion.publish.ports import ImagenBlockedError
 from minion.publish.serialize import slugify
@@ -72,6 +73,8 @@ def _pipeline(
         FakePromptRewriter(),
         content_repo,
         fiche_runner or FakeFicheGenerateRunner(),
+        FakeNotebookLMClient(),
+        FakeAudioStorage(),
     )
 
 
@@ -82,7 +85,7 @@ def test_full_fake_pipeline_publishes_article(run_store, lock_store, clock) -> N
     final = run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=steps)
 
     assert final.status is RunStatus.success
-    assert len(final.steps) == 9 and all(s.status is RunStatus.success for s in final.steps)
+    assert len(final.steps) == 10 and all(s.status is RunStatus.success for s in final.steps)
 
     # One commit for the whole day's article — no cited sources here, so no second (fiches)
     # commit follows it.

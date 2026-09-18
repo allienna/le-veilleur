@@ -18,6 +18,7 @@ from minion.config import ARTICLE_URL_TEMPLATE, CLOUD_RUN_JOB_NAME, CLOUD_RUN_RE
 from minion.generate.models import GeneratedArticle
 from minion.ingest.models import SourceSet
 from minion.models import Run, RunStatus, StepName
+from minion.podcast.models import PodcastArtifact
 from minion.publish.models import ImageArtifact
 
 _STATUS_LABELS: dict[RunStatus, str] = {
@@ -200,6 +201,23 @@ def _metrics_html(run: Run, data: Mapping[str, object]) -> str:
       </td></tr>"""
 
 
+def _podcast_section_html(data: Mapping[str, object]) -> str:
+    episode = data.get("podcast")
+    if not isinstance(episode, PodcastArtifact) or not episode.available:
+        return ""
+    return f"""
+      <tr><td style="padding:20px 32px 0;">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;
+                    letter-spacing:0.04em;color:#64748b;margin-bottom:8px;">
+          Épisode du jour
+        </div>
+        <a href="{html.escape(episode.audio_url)}"
+           style="font-size:14px;color:{_NAVY};text-decoration:underline;">
+          Écouter l'épisode
+        </a>
+      </td></tr>"""
+
+
 def build_message(run: Run, data: Mapping[str, object]) -> tuple[str, str]:
     """Return `(subject, html_body)` for `run`'s post-run notification email."""
     label = _STATUS_LABELS[run.status]
@@ -231,6 +249,7 @@ def build_message(run: Run, data: Mapping[str, object]) -> tuple[str, str]:
           {_article_section_html(run, article)}
           {_linkedin_section_html(run, article)}
           {_metrics_html(run, data)}
+          {_podcast_section_html(data)}
           <tr><td style="padding:24px 32px 32px;">
             <a href="{_logs_url(run)}" style="font-size:12px;color:#94a3b8;">Voir les logs</a>
           </td></tr>

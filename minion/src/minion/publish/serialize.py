@@ -4,8 +4,8 @@ Pure functions, no I/O. A dependency-free YAML emitter keeps the frontmatter con
 auditable (the field sets are fully controlled by the models here) and avoids a `pyyaml` review.
 Stable field ordering keeps GitHub commits byte-idempotent across replays.
 
-The emitted shapes match site/src/content/config.ts exactly — the `articles` and `fiches`
-collections. Deviating breaks the Astro build, which is the real gate.
+The emitted shapes match site/src/content/config.ts exactly — the `articles`, `fiches` and
+`podcasts` collections. Deviating breaks the Astro build, which is the real gate.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import unicodedata
 from minion import config
 from minion.fiches.models import FicheDoc
 from minion.generate.models import GeneratedArticle
+from minion.podcast.models import PodcastArtifact
 
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
 # A numbered entry in the body's `## Sources` list, e.g. `3. [Titre](https://…)`.
@@ -123,3 +124,19 @@ def render_fiche(fiche: FicheDoc) -> str:
         lines.append(f"tone: {_yaml_scalar(fiche.tone)}")
     lines.append(f"used_in: {_yaml_quoted_seq(fiche.used_in)}")
     return _frontmatter(lines, fiche.body)
+
+
+def render_podcast_episode(episode: PodcastArtifact) -> str:
+    """Serialize one episode to `site/src/content/podcasts/{date}.md`.
+
+    Frontmatter-only, English keys, matching the `podcasts` collection in
+    site/src/content/config.ts. No real body is needed — the site renders from `audioUrl` alone.
+    """
+    lines = [
+        f"title: {_yaml_scalar(episode.title)}",
+        f"date: {episode.date}",
+        f"audioUrl: {_yaml_scalar(episode.audio_url)}",
+    ]
+    if episode.duration_seconds is not None:
+        lines.append(f"durationSeconds: {episode.duration_seconds}")
+    return _frontmatter(lines, "")

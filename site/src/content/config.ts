@@ -36,4 +36,14 @@ const fiches = defineCollection({
   }),
 });
 
-export const collections = { articles, blog, fiches };
+const podcasts = defineCollection({
+  type: 'content',
+  schema: z.object({
+    title: z.string(),
+    date: z.coerce.date(),
+    audioUrl: z.string().url(),
+    durationSeconds: z.number().optional(),
+  }),
+});
+
+export const collections = { articles, blog, fiches, podcasts };

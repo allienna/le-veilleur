@@ -22,6 +22,7 @@ from minion.models import RunStatus
 from minion.notify.message import build_message
 from minion.notify.ports import Notifier, NotifyError
 from minion.orchestrator import run_pipeline
+from minion.podcast.ports import AudioStorage, NotebookLMClient
 from minion.publish.ports import ContentRepository, ImageGenerator, PromptRewriter
 from minion.steps import build_pipeline
 from minion.store.memory import InMemoryLockStore, InMemoryRunStore
@@ -57,15 +58,19 @@ def build_clients() -> tuple[
     PromptRewriter,
     ContentRepository,
     FicheGenerateRunner,
+    NotebookLMClient,
+    AudioStorage,
     Notifier,
 ]:
-    """Construct the production ingestion / generation / publishing / notify clients (lazy —
-    needs creds)."""
+    """Construct the production ingestion / generation / publishing / podcast / notify clients
+    (lazy — needs creds)."""
     from minion.fiches.runner import ClaudeFicheGenerateRunner
     from minion.generate.runner import ClaudeGenerateRunner
     from minion.ingest.gmail import GmailReaderClient
     from minion.ingest.scraper import LocalExtractorClient
     from minion.notify.gmail import GmailNotifier
+    from minion.podcast.gcs import GcsAudioStorage
+    from minion.podcast.notebooklm import NotebookLMEnterpriseClient
     from minion.publish.github import GitHubContentRepository
     from minion.publish.imagen import ClaudePromptRewriter, GeminiImageGenerator
 
@@ -77,6 +82,8 @@ def build_clients() -> tuple[
         ClaudePromptRewriter(),
         GitHubContentRepository(),
         ClaudeFicheGenerateRunner(),
+        NotebookLMEnterpriseClient(),
+        GcsAudioStorage(),
         GmailNotifier(),
     )
 
@@ -107,6 +114,8 @@ def run(date: str | None) -> None:
         prompt_rewriter,
         content_repo,
         fiche_runner,
+        notebooklm_client,
+        audio_storage,
         notifier,
     ) = build_clients()
     steps = build_pipeline(
@@ -117,6 +126,8 @@ def run(date: str | None) -> None:
         prompt_rewriter,
         content_repo,
         fiche_runner,
+        notebooklm_client,
+        audio_storage,
     )
     data: dict[str, object] = {}
     result = run_pipeline(

@@ -24,6 +24,7 @@ _CANNED_PAYLOADS: dict[StepName, dict[str, object]] = {
     StepName.imagen: {"imageBytes": None},
     StepName.github: {"commit": None},
     StepName.fiches: {"fiched": 0},
+    StepName.podcast: {"episode": None},
 }
 
 

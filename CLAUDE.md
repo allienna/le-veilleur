@@ -34,10 +34,10 @@ just image          # build the amd64 image and smoke it
 just tf-check       # terraform fmt + validate
 ```
 
-## The nine pipeline steps
+## The ten pipeline steps
 
 `gmail` → `scrape` → `validate_input` → `assemble` → `generate` → `validate_output` → `imagen`
-→ `github` → `fiches`
+→ `github` → `fiches` → `podcast`
 
 Ordering is fixed by `config.STEP_ORDER`, which is `tuple(StepName)`. `minion/README.md` describes
 each step; `minion/src/minion/cli.py` is the composition root and the only place that knows which

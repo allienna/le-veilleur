@@ -9,10 +9,12 @@ from __future__ import annotations
 from minion import config
 from minion.fiches.models import FicheDoc
 from minion.generate.models import ArticleFrontmatter, GeneratedArticle
+from minion.podcast.models import PodcastArtifact
 from minion.publish.serialize import (
     count_sources,
     normalize_themes,
     render_fiche,
+    render_podcast_episode,
     render_post,
     slugify,
 )
@@ -155,3 +157,31 @@ def test_render_fiche_omits_optional_fields_when_absent() -> None:
     out = render_fiche(_fiche(authors=[], tone=None))
     assert "authors:" not in out and "tone:" not in out
     assert 'used_in: ["2026-06-01"]' in out
+
+
+def _episode(**over: object) -> PodcastArtifact:
+    base: dict[str, object] = {
+        "date": "2026-06-01",
+        "title": "Le Veilleur — 2026-06-01",
+        "audio_url": "https://storage.googleapis.com/bucket/2026-06-01.mp3",
+        "duration_seconds": 1234,
+    }
+    base.update(over)
+    return PodcastArtifact.model_validate(base)
+
+
+def test_render_podcast_episode_field_order_matches_the_site() -> None:
+    out = render_podcast_episode(_episode())
+    fm_block = out[: out.index("\n---\n\n")]
+    order = [line.split(":")[0] for line in fm_block.splitlines() if ":" in line and line != "---"]
+    assert order == ["title", "date", "audioUrl", "durationSeconds"]
+
+
+def test_render_podcast_episode_omits_duration_when_absent() -> None:
+    out = render_podcast_episode(_episode(duration_seconds=None))
+    assert "durationSeconds:" not in out
+
+
+def test_render_podcast_episode_quotes_the_url() -> None:
+    out = render_podcast_episode(_episode())
+    assert 'audioUrl: "https://storage.googleapis.com/bucket/2026-06-01.mp3"' in out

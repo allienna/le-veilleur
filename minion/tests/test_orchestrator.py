@@ -58,7 +58,7 @@ def test_replay_overwrites_with_fresh_runid_no_orphans(run_store, lock_store, cl
     stored = run_store.get_run(DATE)
     assert stored is not None
     assert stored.run_id == second.run_id
-    assert len(stored.steps) == 9  # no duplicate/orphan step records from the first attempt
+    assert len(stored.steps) == 10  # no duplicate/orphan step records from the first attempt
 
 
 @dataclass
