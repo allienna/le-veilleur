@@ -2,75 +2,46 @@
 title: "Refactoring Hermes with 1,393 agents"
 date: 2026-09-18
 url: "https://tracking.tldrnewsletter.com/CL0/https:%2F%2Fnousresearch.com%2Frefactoring-hermes-with-1393-agents%3Futm_source=tldrdev/1/010001a0af146874-dc9a6ee3-a5dc-4222-8676-ccbdd199480a-000000/3h-TH5wWtHj1o4KIDGP8I_vjZACerPvUw9hCW5PHt4w=452"
-keywords: ["agents autonomes", "orchestration multi-agents", "refactoring", "Claude", "ingénierie logicielle", "Hermes"]
+keywords: ["agents IA", "refactoring", "orchestration multi-agents", "Nous Research", "Hermes", "dette technique"]
 theme: "IA"
 tone: "research"
 used_in: ["2026-09-18"]
 ---
 
 ## Résumé
-Nous Research a utilisé son agent autonome Hermes pour refactoriser plus d'un million de lignes de code Python en déployant 1 393 sous-agents sur une exécution de dix-neuf heures actives. Le résultat : une réduction de 34,4 % du code source hors tests, des fichiers géants découpés et une complexité cyclomatique fortement réduite, pour un coût d'environ 19 000 à 25 000 $, contre une estimation manuelle de 150 000 $ à 1,8 M$. L'agent s'appuie sur un système de compétences (« skills ») auto-améliorantes qui capitalisent au fil du temps les procédures et corrections apprises auprès de l'ingénieur. Des régressions réelles (suppression d'API publiques utilisées par des plugins externes, modification de la gestion des exceptions) ont toutefois été détectées lors de la revue humaine avant la fusion.
+Nous Research a chargé son agent Hermes d'orchestrer 1 393 sous-agents pour refactoriser en profondeur la base de code Python de Hermes Agent, un chantier repoussé de longue date faute de temps disponible. En environ 19 heures de calcul actif, réparties sur 218 agents simultanés au pic, le projet a réduit le code Python hors tests de 34,4 % (1 063 826 → 698 363 lignes), pour un coût estimé de 19 300 à 25 000 dollars en tokens — contre une estimation manuelle de 150 000 à 1,8 million de dollars pour une petite équipe travaillant de deux mois à deux ans. L'opération s'est appuyée sur une architecture orchestrateur/workers utilisant des git worktrees isolés, des vérifications d'interfaces strictes (schémas JSON, sorties CLI identiques), et sur des « skills » que Hermes avait accumulées et affinées au fil des sessions de travail quotidiennes avec son opérateur. L'article documente aussi les limites de l'exercice : régressions détectées en revue, incident d'infrastructure en cours de run, et mesures chiffrées de l'impact du refactoring sur la capacité des agents (et non seulement des humains) à naviguer dans le code.
 
 ## Points clés
-- Refactoring massif : 1 393 sous-agents (218 simultanés), 19 heures actives, réduction du code Python hors tests de 34,4 % (1 063 826 → 698 363 lignes).
-- Coût : environ 19 000-25 000 $ en tokens, contre une estimation de 150 000 $ à 1,8 M$ pour un travail manuel équivalent.
-- Architecture : un orchestrateur découpe la base de code en 36 groupes non chevauchants, les workers travaillent dans des git worktrees isolés, avec jusqu'à trois niveaux de sous-délégation.
-- Système de compétences auto-apprenant (`hermes-agent-dev`) qui capitalise les corrections et procédures de l'ingénieur et se partage entre équipes.
-- Gains mesurés pour la navigabilité du code par un agent : tokens moyens par recherche de symbole divisés par plus de deux (2 218 → 993).
-- Limites observées : régressions réelles détectées en revue (API publiques supprimées mais utilisées par des plugins externes, changement de gestion des exceptions sur 65 sites), couplage inter-fichiers non résolu, six fichiers encore supérieurs à 5 000 lignes.
+- Échelle de l'opération : 1 393 sous-agents dispatchés, jusqu'à 218 en parallèle, run principal de ~19h, fusion de la PR le 4 septembre après deux tours de revue communautaire.
+- Gains mesurés : -34,4 % de lignes de code Python hors tests ; le fichier `gateway/run.py` passe de 34 847 à 5 512 lignes ; les fonctions de plus de 300 lignes passent de 192 à seulement 2 ; la plus longue chaîne `if/elif` passe de 92 à 9 branches.
+- Coût dérisoire comparé au travail humain : environ 19 000-25 000 $ de tokens contre une fourchette estimée de 150 000 $ à 1,8 M$ pour réaliser le même travail manuellement.
+- Méthode d'orchestration : découpage du dépôt en 36 groupes non chevauchants, workers isolés via git worktrees, consignes écrites automatiquement à partir des standards appris par l'agent, vérifications d'interfaces avant chaque commit, et récupération après une panne d'authentification qui a interrompu le run à mi-parcours.
+- Amélioration continue outillée : la « skill » interne `hermes-agent-dev`, enrichie automatiquement à chaque correction ou leçon apprise, a été redistribuée à toute l'équipe d'ingénieurs pour que leurs propres agents en bénéficient sans repasser par les mêmes sessions.
+- Limites et effets de bord : des régressions réelles ont été repérées en revue (suppression de noms publics utilisés par des plugins externes, changement de comportement de `suppress()` sur une soixantaine de sites), l'import de certains modules a ralenti, et six fichiers dépassaient encore 5 000 lignes après coup.
 
 ## Analyse approfondie
-# Refactoring Hermes avec 1 393 agents
 
-Ou : comment tirer 1,8 M$ de valeur de 19 000 $ de tokens
+### Le point de départ
+Le dépôt de Hermes, l'agent open-source de Nous Research, avait dépassé le million de lignes de Python hors tests, avec des fichiers monstres comme `gateway/run.py` (près de 35 000 lignes). Le nettoyage était repoussé depuis longtemps car il aurait mobilisé des ingénieurs au détriment des fonctionnalités et des correctifs. Début septembre, l'auteur a confié cette tâche à son agent Hermes habituel plutôt qu'à des humains. Le run principal a duré environ 19 heures actives et déployé 1 393 sous-agents (218 en simultané au maximum) ; après un redémarrage, une session de continuation et deux tours de revue communautaire, la PR a été fusionnée le 4 septembre, réduisant le code source Python hors tests de 34,4 %. Le coût du run principal est estimé à environ 19 300 $, et à environ 25 000 $ en comptant les sessions de suivi (hors temps humain de revue) — à comparer à une estimation de 150 000 $ à 1,8 million de dollars pour une petite équipe humaine travaillant de deux mois à deux ans sur le même chantier, un budget que l'équipe ne pouvait de toute façon pas dégager.
 
-*TLDR : L'agent Hermes a labouré de façon autonome environ un million de lignes de nettoyage ingrat, libérant Teknium et son équipe pour continuer à livrer des fonctionnalités aux utilisateurs.*
+### Une auto-amélioration continue, pas un coup ponctuel
+L'agent utilise au quotidien une « skill » nommée `hermes-agent-dev`, construite progressivement : chaque fois qu'une procédure est mise au point ou qu'une erreur est corrigée en session, Hermes enregistre automatiquement la leçon réutilisable sous forme de documents Markdown, avec fichiers de référence et scripts si besoin. Au fil du temps, cette skill a accumulé des consignes sur la préparation des PR, les raccourcis à éviter, et la manière de vérifier un changement — par exemple la règle consistant à reproduire un échec sur la HEAD de `origin/main` en environnement propre pour savoir s'il est préexistant. C'est exactement cette logique de comparaison à une base de référence figée que l'agent a réutilisée pendant le refactoring pour valider les changements des workers. Cette skill est partagée avec toute l'équipe d'ingénierie, qui peut l'installer dans ses propres instances de Hermes et bénéficier des procédures et corrections développées par l'auteur sans avoir à refaire le travail — chaque agent pouvant ensuite continuer à faire évoluer la skill à son tour.
 
-Nous avions longtemps repoussé un nettoyage en profondeur de Hermes, notre agent open source, car cela signifiait détourner des ingénieurs des fonctionnalités et des corrections de bugs. En septembre, le dépôt comptait plus d'un million de lignes de Python hors tests. `gateway/run.py` à lui seul faisait 34 847 lignes. Je voulais des fichiers plus petits, des helpers partagés et moins de fonctions énormes à parcourir quand quelque chose cassait.
+Pour lancer le chantier, l'auteur a formulé un objectif explicite et ambitieux — une simplification massive avec au minimum 30 % de réduction du nombre de lignes, la décomposition des fichiers monolithiques, l'unification des fonctions redondantes, la réduction des chaînes de conditions imbriquées, une meilleure lisibilité et interprétabilité du code, sans attendre de validations intermédiaires — via la commande `/goal`, qui fixe un objectif permanent et pousse l'agent à continuer de lui-même plutôt que de s'arrêter.
 
-Le 2 septembre, j'ai demandé à mon agent Hermes habituel de faire le nettoyage. L'exécution principale a duré environ dix-neuf heures actives et a déployé 1 393 sous-agents, atteignant 218 en cours d'exécution simultanée. Après un redémarrage, une session de continuation, et deux tours de revue communautaire et de corrections, j'ai fusionné la PR le 4 septembre. Cela a réduit le code source Python hors tests de 34,4 %.
+### Le déroulement du refactoring
+L'orchestrateur a commencé par mesurer la base de code et la répartir en 36 groupes non chevauchants, préparant les consignes écrites pour chaque worker à partir de l'objectif fixé et des standards accumulés, sans que l'auteur n'ait besoin de briefer chaque agent individuellement. Les workers travaillaient dans des git worktrees séparés — des copies de travail indépendantes évitant qu'ils n'écrasent mutuellement leurs modifications. Leurs consignes précisaient le code à simplifier, les interfaces à préserver, et les vérifications à effectuer avant tout commit.
 
-Le coût estimé du modèle était d'environ 19 300 $ pour l'exécution principale, soit environ 25 000 $ en incluant les sessions de suivi. Cela exclut le temps de revue humaine. Notre estimation approximative des effectifs pour faire ce travail manuellement était de 150 000 $ à 1,8 M$ pour une petite équipe travaillant pendant deux mois à deux ans. Nous ne pouvions pas justifier de le programmer parmi tout ce que nous devions livrer par ailleurs.
+Certains workers ont eux-mêmes délégué une partie de leur tâche, l'arborescence de délégation atteignant trois niveaux sous l'agent d'origine, celui-ci se consacrant uniquement à la coordination (rédaction des consignes et scripts, lecture des rapports, intégration des branches, exécution des vérifications) plutôt qu'à l'édition directe du code source. L'ensemble tournait dans un unique processus Python sur un poste de bureau équipé d'un i7 et de 64 Go de RAM, les outils s'exécutant en sous-processus locaux tandis que l'inférence était assurée à distance par Claude Fable 5.1.
 
-J'utilise Hermes Agent tous les jours pour développer Hermes Agent. Au fil de nos corrections de bugs et revues de changements ensemble, Hermes enregistre ce qui a fonctionné et met à jour ses compétences (skills) quand je corrige son approche ou quand il trouve la bonne voie pour résoudre de nouveaux problèmes. Au moment où j'ai demandé ce refactoring, il avait appris mes procédures et standards préférés et pouvait les appliquer à un travail bien plus vaste :
+La vérification portait sur des interfaces précises : le schéma JSON d'un outil devait rester identique, la sortie `--help` d'une commande CLI pouvait être comparée octet par octet, et les workers devaient committer après chaque étape validée. Environ cinquante minutes après le début du run, l'expiration du jeton d'authentification du fournisseur a provoqué une cascade d'échecs qui a interrompu l'exécution — mais les commits et les consignes des workers ont survécu. L'auteur a utilisé une session Hermes distincte pour diagnostiquer la panne et préparer une passation, réinjectée ensuite dans la session reprise : Hermes a alors renvoyé les workers inspecter leurs modifications sauvegardées, réparer les extractions inachevées, puis poursuivre.
 
-*Je veux un ensemble massif de PR de simplification. Ou une seule PR monolithique. Je veux que le nombre de lignes de code chute drastiquement. Minimum 30 % au global. Je veux que les fichiers géants soient découpés. Je veux une simplification sur tous les fronts. Je veux l'unification des helpers et méthodes réutilisables. Je veux moins de routage en if-if-if-if-if-else. Je veux plus de lisibilité du code. Je veux plus d'interprétabilité de la base de code et de la façon dont les éléments s'articulent entre eux. Je veux de l'élégance. Je veux que le code superflu et boursouflé soit nettoyé et supprimé. Je veux que tout soit fait entièrement. Pas d'excuses. Pas d'attente de mes décisions. Faites tout, et présentez-moi une PR ou un ensemble de PR une fois terminé.*
+Sur `gateway/run.py`, le plus gros fichier du dépôt, les workers ont séparé la répartition des messages, le streaming, les appels RPC et la gestion du cycle de vie en modules distincts. Ailleurs, ils ont fusionné des fonctions utilitaires dupliquées et remplacé de longues chaînes `if/elif` fondées sur des noms par des tables de dispatch.
 
-J'ai utilisé `/goal`, qui donne à Hermes un objectif permanent et l'incite à continuer alors qu'il se serait autrement arrêté.
+Les relecteurs ont repéré des noms publics supprimés par les workers parce qu'ils n'avaient aucun appelant à l'intérieur du dépôt, alors même que des plugins externes pouvaient les importer. Une réécriture automatisée des appels à `suppress()` a également modifié la gestion des exceptions sur environ 65 emplacements. Il s'agissait de véritables régressions que les tests existants n'avaient pas détectées ; elles ont été corrigées avant la fusion, au terme de deux tours de revue communautaire, avec des correctifs supplémentaires après la fusion.
 
-## Auto-amélioration (pour de vrai)
-
-Ma compétence `hermes-agent-dev` est née de mon travail quotidien sur le dépôt. Quand nous mettions au point une procédure ou que je corrigeais une erreur, Hermes le remarquait (automatiquement) et enregistrait la leçon réutilisable. Au fil du temps, il a accumulé des instructions sur la façon de préparer une PR, les raccourcis à éviter, et comment vérifier un changement. Les compétences (skills) sont des documents Markdown lisibles, avec des fichiers de référence et des scripts si nécessaire, que l'agent peut charger pour des tâches ultérieures. Hermes les écrit et les révise au fur et à mesure de son travail.
-
-La version actuelle de `hermes-agent-dev` inclut cette instruction pour un test qui échoue :
-
-*reproduire sur `origin/main` HEAD dans un environnement propre pour vérifier si c'est préexistant*
-
-Autrement dit, exécuter le test qui échoue sur le code inchangé pour aider à déterminer si votre changement en est la cause. Hermes a utilisé le même type de comparaison durant le refactoring : il a établi une base de référence figée et a vérifié les échecs par rapport à celle-ci au fur et à mesure qu'il intégrait les changements des workers.
-
-J'envoie cette compétence à tous nos ingénieurs. Ils peuvent l'installer dans leurs propres configurations Hermes, afin que leurs agents puissent utiliser les procédures et corrections développées dans mes sessions. Ils bénéficient de ce travail sans avoir à répéter les sessions eux-mêmes, et leurs agents peuvent adapter la compétence au fur et à mesure de leur utilisation.
-
-## Exécuter le refactoring
-
-L'orchestrateur a mesuré la base de code et l'a divisée en 36 groupes non chevauchants. Il a utilisé mon objectif et les directives accumulées pour préparer des consignes écrites, sans que j'aie à briefer chaque worker.
-
-Les workers utilisaient des git worktrees, des copies de travail séparées où ils pouvaient effectuer des modifications sans écraser les fichiers des autres. Leurs consignes identifiaient le code à simplifier, les interfaces à préserver, et les vérifications requises avant de committer.
-
-Certains workers ont eux-mêmes délégué des parties de leurs tâches. L'arborescence a atteint trois niveaux sous l'agent d'origine, lequel s'occupait de la coordination plutôt que de l'édition des fichiers source : il rédigeait les consignes et scripts, lisait les rapports des workers, intégrait les branches, et exécutait les vérifications.
-
-Hermes a coordonné les agents dans un seul processus Python sur un poste de bureau i7 avec 64 Go de RAM. Leurs outils s'exécutaient dans des sous-processus locaux, tandis que Claude Fable 5.1 gérait l'inférence à distance.
-
-L'agent vérifiait des interfaces spécifiques par rapport au code d'origine. Le schéma JSON d'un outil devait par exemple rester identique, et la sortie `--help` d'une commande CLI pouvait être comparée octet par octet. Les workers devaient aussi committer après chaque étape vérifiée.
-
-Environ cinquante minutes après le début, le jeton d'authentification du fournisseur a expiré et les échecs qui en ont résulté ont tué l'exécution. Les commits et consignes des workers ont survécu. J'ai utilisé une session Hermes séparée pour diagnostiquer la panne et préparer une passation, que j'ai ensuite fournie à la session reprise. Hermes a renvoyé les workers inspecter leurs changements sauvegardés, réparer les extractions inachevées, et continuer.
-
-Pour `gateway/run.py`, notre plus gros fichier, les workers ont séparé la répartition des messages (dispatch), le streaming, le RPC et la gestion du cycle de vie en modules distincts. Ailleurs, ils ont consolidé des helpers dupliqués et remplacé de longues chaînes `if/elif` basées sur des noms par des tables de dispatch.
-
-Les relecteurs ont repéré des noms publics que les workers avaient supprimés parce qu'ils n'avaient aucun appelant à l'intérieur du dépôt, alors même que des plugins externes pouvaient les importer. Une réécriture automatisée des appels à `suppress()` a également modifié la gestion des exceptions sur environ 65 sites. Il s'agissait de véritables régressions que les tests existants n'avaient pas détectées. Nous les avons corrigées avant la fusion, au terme de deux tours de revue communautaire. D'autres corrections ont suivi après la fusion.
-
-## Le code était-il plus facile à travailler ?
-
-Les mesures avant/après de la PR ont montré à quel point le code avait changé :
+### Le code est-il vraiment devenu plus facile à manipuler ?
+Les mesures avant/après de la PR montrent l'ampleur du changement :
 
 | Métrique | Avant | Après |
 |---|---|---|
@@ -78,27 +49,20 @@ Les mesures avant/après de la PR ont montré à quel point le code avait chang�
 | Fichiers de plus de 5 000 lignes | 37 | 6 |
 | Fonctions de plus de 300 lignes | 192 | 2 |
 | Plus longue chaîne `if/elif` | 92 branches | 9 |
-| `gateway/run.py` | 34 847 lignes | 5 512 |
+| `gateway/run.py` | 34 847 lignes | 5 512 lignes |
 
-Un code plus facile à parcourir pour les humains fonctionne-t-il aussi mieux pour les agents ? Diviser une fonction raccourcit sa définition, mais peut obliger l'agent à suivre les appels vers d'autres fichiers. Nous avons testé une partie de cette question en simulant des recherches des 4 000 mêmes symboles dans les deux versions. Chaque recherche cherchait la définition, lisait une fenêtre de 60 lignes, et ne se poursuivait dans des fenêtres de 2 000 lignes que si la définition dépassait cette taille.
+La question posée ensuite est de savoir si un code plus facile à parcourir pour un humain l'est aussi pour un agent : découper une fonction raccourcit sa définition mais peut obliger l'agent à suivre des appels dans d'autres fichiers. Pour tester cela, l'équipe a simulé la recherche des mêmes 4 000 symboles dans les deux versions du code, chaque recherche localisant la définition, lisant une fenêtre de 60 lignes, puis élargissant à des fenêtres de 2 000 lignes uniquement si la définition dépassait ce cadre.
 
-Le nombre moyen de tokens renvoyés par recherche est passé de 2 218 à 993. Les recherches nécessitant une fenêtre de lecture supplémentaire sont passées de 628 à 184. Plusieurs fonctions qui nécessitaient auparavant de lire des dizaines de milliers de tokens pouvaient désormais être lues en quelques milliers.
+Le nombre moyen de tokens retournés par recherche est passé de 2 218 à 993, et le nombre de recherches nécessitant une fenêtre de lecture supplémentaire est passé de 628 à 184. Plusieurs fonctions qui nécessitaient auparavant la lecture de dizaines de milliers de tokens tiennent désormais en quelques milliers. Il s'agit toutefois de coûts de recherche, pas d'une mesure de la capacité des agents à réaliser des tâches d'ingénierie complètes : la valeur médiane des tokens retournés par recherche a en réalité augmenté, car avec moins de commentaires et de docstrings, une fenêtre de lignes fixe contient un code plus dense — c'est la disparition des très grandes définitions qui explique la baisse de la moyenne.
 
-Il s'agit là de coûts de recherche ; nous n'avons pas mesuré des agents accomplissant des tâches d'ingénierie complètes. La recherche médiane renvoyait en fait davantage de tokens : avec moins de commentaires et de docstrings, une fenêtre de lignes fixe contenait un code plus dense. La moyenne a baissé parce que les très grandes définitions sont devenues bien plus petites.
+D'autres coûts sont apparus : la multiplication des fichiers a augmenté le nombre de modules et de dépendances d'import, ralentissant l'import de certains points d'entrée. Le refactoring a rendu chaque élément plus lisible individuellement sans pour autant résoudre tout le couplage entre eux, et six fichiers dépassaient encore 5 000 lignes à l'issue du chantier. Les données du benchmark, incluant les résultats de recherche ainsi que les mesures de dépendances et de performance à l'exécution, ont été mises à disposition.
 
-Il y avait d'autres coûts. Diviser les fichiers a augmenté le nombre de modules et les dépendances d'import, et certains points d'entrée mettaient plus de temps à s'importer. Le refactoring a rendu les éléments individuels plus faciles à lire sans résoudre tout le couplage qui existait entre eux. Six fichiers dépassaient encore 5 000 lignes.
+### Les leçons tirées
+Faire tourner des centaines de workers a mis en lumière des axes d'amélioration pour Hermes lui-même. Par exemple, les workers dans leurs worktrees séparés avaient chacun démarré leur propre instance de Pyright, le serveur de langage Python, soit une trentaine de copies consommant environ 8,7 Go de mémoire ; un correctif ultérieur a permis aux worktrees de partager un seul serveur, avec une vérification en continu que les diagnostics remontaient bien pour chacun d'eux. L'équipe a également réduit la duplication des transports HTTP et corrigé des références qui maintenaient en mémoire des agents pourtant terminés.
 
-Les données du benchmark incluent les résultats des recherches ainsi que les mesures de dépendances et d'exécution.
+Les consignes et vérifications données aux futurs workers ont été révisées : le dépôt dispose désormais de règles sur la taille des fichiers, la complexité des fonctions et l'emplacement du nouveau code, organisées par zone afin que chaque worker ne reçoive que les règles pertinentes à sa tâche. Une vérification a aussi été ajoutée pour signaler la suppression de noms publics et de tests lors des revues.
 
-## Leçons apprises
-
-Faire fonctionner des centaines de workers a révélé des opportunités d'amélioration pour Hermes lui-même. Par exemple, les workers dans des worktrees séparés avaient démarré environ trente copies de Pyright, un serveur de langage Python, consommant environ 8,7 Go. Un changement ultérieur a permis aux worktrees de partager un seul serveur, avec une vérification en direct que les diagnostics arrivaient bien de chacun d'eux. Nous avons aussi réduit la duplication des transports HTTP et corrigé des références qui gardaient en mémoire des agents pourtant terminés.
-
-Nous avons modifié les instructions et vérifications que recevront les futurs workers. Le dépôt dispose désormais de directives sur la taille des fichiers, la complexité des fonctions, et l'endroit où doit aller le nouveau comportement, réparties par zone afin que les workers reçoivent les règles pertinentes au moment voulu. Nous avons aussi ajouté une vérification qui signale les noms publics supprimés et les tests à examiner.
-
-Mes compétences Hermes ont été automatiquement mises à jour avec les leçons de ce refactoring, que je peux partager avec l'équipe. Le tout pour 1 % du coût et 1 % du temps que nous avions estimé nécessaires si nous avions tenté ce travail manuellement.
-
-C'est un excellent exemple de la façon dont Hermes est un superpouvoir pour les équipes : travailler un problème avec Hermes, le laisser enregistrer ce qu'on a appris, et rendre cette expérience disponible pour la tâche suivante et le prochain ingénieur. La prochaine fois que nous nous attaquerons à un refactoring, mon Hermes et les ingénieurs utilisant la compétence mise à jour pourront repartir des leçons de celui-ci.
+Les skills Hermes de l'auteur ont été automatiquement mises à jour avec les enseignements de ce refactoring, partageables avec toute l'équipe — le tout pour environ 1 % du coût et 1 % du temps estimés pour une réalisation manuelle. L'auteur y voit une illustration de ce qui fait de Hermes un multiplicateur de force pour les équipes : traiter un problème avec l'agent, le laisser consigner ce qui a été appris, et rendre cette expérience disponible pour la tâche suivante et pour le prochain ingénieur qui l'utilisera.
 
 ## Pourquoi ça compte
-Ce cas illustre concrètement le passage à l'échelle de l'orchestration multi-agents autonome appliquée à une tâche d'ingénierie réelle, avec un ROI économique chiffré, tout en montrant que la supervision humaine reste indispensable pour détecter les régressions silencieuses que ces systèmes peuvent introduire.
+Ce cas documente, chiffres à l'appui, le passage des agents IA d'un usage ponctuel (une tâche, un prompt) à une orchestration à grande échelle capable d'absorber une dette technique massive à un coût dérisoire — tout en montrant, via les régressions détectées en revue, que la supervision humaine reste indispensable pour valider ce type d'opération autonome à fort volume.

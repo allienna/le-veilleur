@@ -2,45 +2,55 @@
 title: "If Your Tool Isn't Reachable by Agents, It Doesn't Exist"
 date: 2026-09-18
 url: "https://tracking.tldrnewsletter.com/CL0/https:%2F%2Flws.io%2Fblog%2Fif-your-tool-isnt-reachable-by-agents-it-doesnt-exist%2F%3Futm_source=tldrdev/1/010001a0af146874-dc9a6ee3-a5dc-4222-8676-ccbdd199480a-000000/gRl1uEkLlHNken33sGQ5kf4JE627rCb4poxy6OK5hNo=452"
-keywords: ["agents IA", "MCP", "skills", "distribution logicielle", "Apify", "dashboard"]
+keywords: ["agents IA", "skills", "MCP", "distribution logicielle", "Apify"]
 theme: "IA"
 tone: "opinion"
 used_in: ["2026-09-18"]
 ---
 
 ## Résumé
-
-L'auteur, créateur de Wordsworth (une application d'analyse d'écriture technique) et employé chez Apify, raconte avoir transformé son produit en « skill » installable en une commande pour agents IA, plutôt que de continuer à miser sur son interface web classique. Il constate qu'il n'a lui-même plus ouvert le dashboard de son outil depuis des mois, signe selon lui d'une bascule de fond : les utilisateurs délèguent de plus en plus leurs tâches à un agent unique qui orchestre directement les outils, rendant les interfaces humaines superflues. Il en tire une thèse plus générale : la distribution logicielle historique (SEO, publicité, landing pages) devient obsolète face à l'intégration directe dans les agents via des formats comme les skills et les serveurs MCP. Sa conclusion : un outil injoignable par un agent devient, de fait, invisible — quelle que soit sa qualité.
+L'auteur, créateur de Wordsworth (un outil web pour rédacteurs techniques), raconte comment il a transformé son application en « skill » installable en une commande pour agents IA. Il défend l'idée que la distribution logicielle bascule du modèle « dashboard/site web » vers des capacités directement invocables par des agents, via les skills et les serveurs MCP. Selon lui, un outil qui n'est pas accessible à un agent devient invisible, quelle que soit sa qualité. Il illustre son propos avec l'exemple d'Apify, dont le serveur MCP rend des dizaines de milliers d'outils IA soudain découvrables.
 
 ## Points clés
-
-- Wordsworth a été transformé en skill agent (installable via `npx skills add ...`), exposant sept outils d'analyse d'écriture directement utilisables par un agent, sans passer par l'interface web.
-- L'auteur lui-même n'utilise plus le dashboard de son propre produit depuis des mois — preuve à ses yeux que ce type d'interface devient une couche de friction plutôt qu'un atout.
-- Les canaux de distribution traditionnels (bannières, newsletters, SEO, landing pages) perdent en pertinence dans un monde où un agent unique sert de point d'entrée vers de multiples outils.
-- Chez Apify, des dizaines de milliers d'outils IA sont déjà exposés via un serveur MCP, mais restent souvent invisibles et sous-utilisés tant qu'ils ne sont pas packagés en skill facilement descouvrable.
-- La nouvelle unité de distribution logicielle devient minimale : un fichier markdown ou une définition d'outil, installable en une commande, utilisable par tout agent compatible avec le format.
-- Dans ce nouveau paradigme, un concurrent moins abouti techniquement mais mieux intégré aux agents (installation immédiate, usage transparent) l'emporte sur un produit plus sophistiqué mais uniquement accessible via une interface humaine classique.
+- Wordsworth, une app web avec sept outils d'analyse d'écriture, a été convertie en skill installable via une simple commande (`npx skills add ...`).
+- Le dashboard web est présenté comme une couche de friction (identité, navigation, attention) devenue un surcoût plutôt qu'un atout.
+- Le modèle de distribution classique (bannières, newsletters, SEO, landing pages) est jugé à bout de souffle face à l'usage via un agent unique interfaçant plusieurs plateformes.
+- Avec les skills et MCP, l'agent découvre, appelle et exploite directement la capacité, sans interface humaine intermédiaire.
+- Chez Apify, des dizaines de milliers d'outils IA exposés via serveur MCP deviennent enfin utilisés dès qu'ils sont rendus « joignables » par un agent.
+- La compétition se déplacera vers qui rend sa capacité réellement accessible aux agents plutôt que vers qui construit le produit le plus sophistiqué.
 
 ## Analyse approfondie
+La semaine dernière, j'ai fusionné une pull request qui transforme Wordsworth, mon application web destinée aux rédacteurs techniques, en une skill pour agent. Il suffit de l'installer avec `npx skills add phazonoverload/wordsworth` pour que n'importe quel agent doté d'un accès aux outils reçoive d'un coup sept outils d'analyse d'écriture.
 
-L'auteur ouvre son propos sur un fait concret : il vient de fusionner une pull request qui convertit Wordsworth, son application web destinée aux rédacteurs techniques, en une « skill » pour agents. L'installation se fait en une seule commande, et tout agent disposant d'un accès aux outils récupère alors sept fonctions d'analyse d'écriture regroupées. Le constat qu'il en tire est brutal : si un outil ne se connecte pas à l'agent de quelqu'un, la partie est perdue d'avance.
+Si votre outil ne se connecte pas à l'agent de quelqu'un, la partie est perdue.
 
-Il confie avoir lui-même construit et lancé Wordsworth, mais ne plus l'avoir ouvert depuis des mois. Il précise que ce n'est pas un échec du produit, mais le reflet d'une évolution du marché. Le dashboard, dit-il, est devenu une source de friction : il faut gérer une identité, charger une page, naviguer dans une interface, mobiliser de l'attention. Si la même capacité existe sous forme de skill s'exécutant silencieusement dès que l'agent en a besoin, le dashboard devient un coût superflu.
+J'ai construit Wordsworth. Je l'ai lancé. Je ne l'ai pas ouvert moi-même depuis des mois.
 
-Selon lui, le dashboard a toujours été avant tout une couche de distribution : bannières publicitaires, newsletters, pages optimisées pour le référencement, pages d'atterrissage. Il fallait se battre pour capter l'attention, convaincre quelqu'un de visiter une URL et d'utiliser le produit — une approche qui fonctionnait à condition de disposer d'un budget marketing, d'un bon timing, et d'une patience à toute épreuve. Ce modèle est aujourd'hui, selon lui, dépassé — non pas parce que les applications web et les dashboards seraient mauvais en soi (ils restent tout à fait valables), mais parce que la façon dont les utilisateurs interagissent avec les logiciels change en profondeur.
+Ce n'est pas un échec du produit. C'est le sens du marché. Le dashboard est une friction : une identité à gérer, une page à charger, une interface à parcourir, de l'attention à mobiliser. Si la même capacité existe sous forme de skill qui s'exécute silencieusement quand mon agent en a besoin, le dashboard devient un poids superflu.
 
-Dans un monde où chaque utilisateur dispose d'un agent unique qui s'intègre à diverses plateformes, la mission de tout créateur d'outil devient de s'intégrer à cet agent. Les skills et les serveurs MCP (Model Context Protocol) constituent, pour lui, les deux véhicules de cette intégration. L'agent ouvre l'outil, invoque la capacité voulue, et l'analyse se déroule sans qu'aucune interface humaine ne soit nécessaire : l'utilisateur décrit ce qu'il souhaite, l'agent se charge de router la demande, et l'outil fonctionne en coulisses.
+Le dashboard a toujours été la couche de distribution. Bannières cliquables, newsletters par email, pages optimisées pour le référencement, pages d'atterrissage. On se bat pour capter l'attention. On convainc quelqu'un de visiter une URL et d'utiliser son outil. Cela fonctionne si l'on dispose d'un budget marketing, d'un bon timing, et de la patience d'un missionnaire.
 
-L'auteur illustre ce phénomène par son expérience chez Apify, où des dizaines de milliers d'outils IA sont mis à disposition via leur serveur MCP — prêts à être découverts, prêts à être utilisés. Il observe quotidiennement des outils qui existent, fonctionnent et sont utiles, mais que personne n'ouvre faute d'en connaître l'existence. Dès qu'un de ces outils est rendu accessible sous forme de skill, il se retrouve soudain entre les mains de milliers d'utilisateurs qui ignoraient jusqu'alors en avoir besoin.
+Ce modèle est aujourd'hui cassé. Non pas parce que les applications web et les dashboards seraient mauvais en soi — ils fonctionnent très bien — mais parce que la manière dont les gens interagissent avec les logiciels est en train de changer.
 
-Il revient sur Wordsworth : sept outils aux fonctions distinctes — score de lisibilité, détection des tournures de prudence excessive (« hedge words »), vérification du respect des promesses formulées dans un texte, etc. En tant qu'application web, l'utilisation exigeait de se souvenir de l'URL, d'ouvrir un navigateur, de coller le texte, de cliquer sur des boutons, de lire les résultats, puis de les recopier ailleurs. En tant que skill, il suffit que l'agent de l'auteur l'invoque pour que l'analyse s'exécute directement.
+Dans un monde où chaque utilisateur dispose d'un agent unique s'intégrant à diverses plateformes, votre travail consiste à vous intégrer à cet agent. Les skills et les serveurs MCP sont le moyen d'y parvenir.
 
-L'auteur note que le format « skill » n'est pas nouveau en soi. Ce qui change, c'est la multiplication des plateformes d'agents capables de consommer ce format, ce qui transforme radicalement les mathématiques de la distribution logicielle : une capacité publiée comme skill peut désormais fonctionner sur n'importe quel agent supportant ce format, avec un onboarding standardisé et un mode d'invocation uniforme.
+L'agent ouvre votre outil, appelle votre capacité, et l'analyse s'effectue. Aucune interface humaine n'est nécessaire. L'utilisateur décrit ce qu'il veut. L'agent se charge du routage. Votre outil fonctionne, tout simplement.
 
-Il pousse le raisonnement jusqu'à sa conclusion compétitive : on pourrait construire la plateforme d'analyse d'écriture la plus sophistiquée au monde (il admet que la sienne ne l'était pas) — si un concurrent la propose sous forme de skill installable en une seule commande et fonctionnant directement dans l'agent déjà utilisé par une équipe, ce concurrent l'emporte, tout simplement parce qu'il est réellement accessible.
+Chez Apify, des dizaines de milliers d'outils IA sont mis à disposition via notre serveur MCP. Prêts à être découverts. Prêts à être utilisés. Je le constate chaque jour : des outils qui existent, qui fonctionnent, qui sont utiles, mais que personne n'ouvre parce que personne ne sait qu'ils existent. Puis quelqu'un les rend accessibles sous forme de skill, et soudain ils se retrouvent entre les mains de milliers d'utilisateurs qui ignoraient jusque-là en avoir besoin.
 
-En conclusion, l'auteur affirme que Wordsworth en tant qu'application web représente désormais un coût irrécupérable (« sunk cost »). L'avenir du produit, selon lui, réside dans le fait que ce sont des agents qui l'appelleront — un état de fait avec lequel il se dit en paix. Il rappelle qu'il y a dix ans, distribuer un logiciel impliquait de monter une infrastructure d'hébergement, de construire une page d'atterrissage, de faire de la publicité ou du référencement, de rédiger des articles de blog, d'assister à des conférences, de démarcher des journalistes — autant d'efforts superflus pour une capacité que les gens veulent simplement pouvoir utiliser. Désormais, cette capacité vit là où opèrent les agents : un simple fichier markdown, une définition d'outil. C'est, selon lui, la nouvelle forme de la distribution logicielle. Et c'est là, conclut-il, que Wordsworth a désormais sa place — non plus en tant que produit autonome, mais en tant que skill.
+Wordsworth compte sept outils. Chacun fait quelque chose de différent : notation de lisibilité, détection de mots d'atténuation (« hedge words »), vérification de la tenue des promesses du texte. En tant qu'application web, il faut se souvenir de l'URL, ouvrir le navigateur, coller le texte, cliquer sur des boutons, lire les résultats, les recopier ailleurs. En tant que skill, mon agent l'appelle et l'analyse se fait directement.
+
+Le format skill n'est pas nouveau. Mais la prolifération des plateformes d'agents qui consomment des skills change la donne en matière de distribution. Une capacité publiée comme skill peut tourner sur n'importe quel agent supportant ce format. Une distribution avec un onboarding standard et une manière standard de l'invoquer.
+
+Vous pourriez construire la plateforme d'analyse d'écriture la plus sophistiquée au monde (la mienne ne l'était pas, pour ce que ça vaut). Si votre concurrent se déploie sous forme de skill qui s'installe en une commande et fonctionne dans l'agent que votre équipe utilise déjà, c'est ce concurrent qui gagne. Parce qu'il est réellement joignable.
+
+Wordsworth en tant qu'application web est un coût irrécupérable (« sunk cost »). L'avenir de ce produit, ce sont des agents qui l'appellent. Je m'en accommode.
+
+Il y a dix ans, distribuer un logiciel signifiait mettre en place une infrastructure d'hébergement, construire une landing page, faire de la publicité ou du SEO, écrire des articles de blog, participer à des conférences, démarcher des journalistes. Tout cela représentait un surcoût pour une capacité que les gens voulaient simplement pouvoir utiliser.
+
+Désormais, il s'agit d'une capacité qui vit partout où les agents opèrent. Un simple fichier markdown. Une définition d'outil. Voilà la nouvelle distribution.
+
+Mon application web n'est plus un produit. C'est une skill. Et c'est là qu'est désormais la place de Wordsworth.
 
 ## Pourquoi ça compte
-
-Ce billet illustre un basculement structurel dans la manière dont les logiciels sont distribués et consommés à l'ère des agents IA (skills, MCP), un signal utile pour quiconque suit l'évolution des stratégies produit et go-to-market dans un contexte où l'agent devient le principal point d'accès aux outils numériques.
+Ce texte capture un changement de paradigme concret pour la veille tech : la valeur d'un outil logiciel dépend de plus en plus de sa capacité à être découvert et invoqué par des agents IA (via skills/MCP), et non plus de sa présence en tant qu'application autonome — un signal fort pour repenser les stratégies produit et de distribution.
