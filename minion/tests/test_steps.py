@@ -11,7 +11,7 @@ from minion.generate.fakes import FakeGenerateRunner
 from minion.ingest.fakes import FakeGmailClient, FakeScraperClient
 from minion.logging import bind
 from minion.models import StepName
-from minion.podcast.fakes import FakeAudioStorage, FakeNotebookLMClient
+from minion.podcast.fakes import FakeAudioStorage, FakeAudioSynthesizer, FakeScriptWriter
 from minion.publish.fakes import (
     FakeContentRepository,
     FakeImageGenerator,
@@ -63,7 +63,8 @@ def test_build_pipeline_wires_real_steps_and_keeps_order() -> None:
         FakePromptRewriter(),
         FakeContentRepository(),
         FakeFicheGenerateRunner(),
-        FakeNotebookLMClient(),
+        FakeScriptWriter(),
+        FakeAudioSynthesizer(),
         FakeAudioStorage(),
     )
     assert len(pipeline) == 10

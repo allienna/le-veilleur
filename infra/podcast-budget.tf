@@ -6,7 +6,11 @@
 # automated action.
 resource "google_billing_budget" "podcast_cap" {
   billing_account = var.billing_account
-  display_name    = "Veilleur podcast ${var.podcast_budget_amount_eur} EUR/mo (notify-only)"
+  # Deliberately shaped identically to monthly_cap (killswitch.tf) while diagnosing a bare
+  # "Request contains an invalid argument" 400 from the Billing Budgets API with no field-level
+  # detail — same threshold count/values, no special characters in display_name. Re-add the
+  # "(notify-only)" wording and a 0.5 warning threshold once this variant is confirmed to apply.
+  display_name = "Veilleur podcast ${var.podcast_budget_amount_eur} EUR per month"
 
   budget_filter {
     projects = ["projects/${var.project_id}"]
@@ -24,9 +28,6 @@ resource "google_billing_budget" "podcast_cap" {
     }
   }
 
-  threshold_rules {
-    threshold_percent = 0.5
-  }
   threshold_rules {
     threshold_percent = 0.8
   }

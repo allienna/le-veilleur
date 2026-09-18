@@ -23,7 +23,7 @@ from minion.ingest.fakes import FakeGmailClient, FakeScraperClient
 from minion.ingest.models import Newsletter
 from minion.models import RunStatus
 from minion.orchestrator import run_pipeline
-from minion.podcast.fakes import FakeAudioStorage, FakeNotebookLMClient
+from minion.podcast.fakes import FakeAudioStorage, FakeAudioSynthesizer, FakeScriptWriter
 from minion.publish.fakes import FakeContentRepository, FakeImageGenerator, FakePromptRewriter
 from minion.publish.ports import ImagenBlockedError
 from minion.publish.serialize import slugify
@@ -73,7 +73,8 @@ def _pipeline(
         FakePromptRewriter(),
         content_repo,
         fiche_runner or FakeFicheGenerateRunner(),
-        FakeNotebookLMClient(),
+        FakeScriptWriter(),
+        FakeAudioSynthesizer(),
         FakeAudioStorage(),
     )
 

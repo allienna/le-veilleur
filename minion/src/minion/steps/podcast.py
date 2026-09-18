@@ -4,11 +4,12 @@ Data bag contract:
 - reads `sources` (a `SourceSet`, written by `scrape`/`validate_input`)
 - writes `podcast` (a `PodcastArtifact`) only when an episode was actually produced and committed
 
-Never raises: disabled via `PODCAST_ENABLED`, no OK sources, a NotebookLM failure/timeout, a GCS
-upload failure, or an exhausted commit retry are all soft failures — the step returns a
-`warning` and the run still finishes as `success_with_warnings`, exactly like `imagen`'s
-give-up path and `fiches`' partial-failure path (`steps/publish.py`, `steps/fiches.py`). Placed
-last in `STEP_ORDER` so it can never block the article, image, or fiches from shipping.
+Never raises: disabled via `PODCAST_ENABLED`, no OK sources, a script-writing failure, a
+Text-to-Speech failure, a GCS upload failure, or an exhausted commit retry are all soft
+failures — the step returns a `warning` and the run still finishes as `success_with_warnings`,
+exactly like `imagen`'s give-up path and `fiches`' partial-failure path (`steps/publish.py`,
+`steps/fiches.py`). Placed last in `STEP_ORDER` so it can never block the article, image, or
+fiches from shipping.
 """
 
 from __future__ import annotations
@@ -24,9 +25,11 @@ from minion.models import StepName
 from minion.podcast.models import PodcastArtifact
 from minion.podcast.ports import (
     AudioStorage,
+    AudioSynthesisError,
+    AudioSynthesizer,
     AudioUploadError,
-    NotebookLMClient,
     PodcastGenerationError,
+    ScriptWriter,
 )
 from minion.publish.ports import ContentRepoError, ContentRepository
 from minion.publish.serialize import render_podcast_episode
@@ -37,11 +40,17 @@ def _podcast_enabled() -> bool:
     return os.environ.get(config.PODCAST_ENABLED_ENV_VAR, "true").lower() in ("1", "true", "yes")
 
 
+def _target_words() -> int:
+    minutes = config.PODCAST_TARGET_DURATION.total_seconds() / 60
+    return round(minutes * config.PODCAST_WORDS_PER_MINUTE)
+
+
 @dataclass
 class PodcastStep:
-    """Step 10: generate the day's audio overview via NotebookLM Enterprise and publish it."""
+    """Step 10: write a two-speaker script and synthesize it into the day's episode."""
 
-    notebooklm: NotebookLMClient
+    script_writer: ScriptWriter
+    audio_synthesizer: AudioSynthesizer
     audio_storage: AudioStorage
     content_repo: ContentRepository
     sleep: Callable[[float], None] = time.sleep
@@ -72,14 +81,16 @@ class PodcastStep:
             ctx.log.info("no OK sources; skipping podcast episode")
             return StepResult()
 
-        source_pairs = [(s.url, s.title or s.url) for s in ok_sources]
+        try:
+            turns = self.script_writer.write_script(ok_sources, target_words=_target_words())
+        except PodcastGenerationError as exc:
+            ctx.log.warning("podcast script generation failed", extra={"error": str(exc)[:300]})
+            return StepResult(warning=config.PODCAST_UNAVAILABLE_WARNING)
 
         try:
-            result = self.notebooklm.generate_episode(
-                date=ctx.date, sources=source_pairs, language_code=config.PODCAST_LANGUAGE_CODE
-            )
-        except PodcastGenerationError as exc:
-            ctx.log.warning("notebooklm generation failed", extra={"error": str(exc)[:300]})
+            result = self.audio_synthesizer.synthesize(turns, config.PODCAST_LANGUAGE_CODE)
+        except AudioSynthesisError as exc:
+            ctx.log.warning("audio synthesis failed", extra={"error": str(exc)[:300]})
             return StepResult(warning=config.PODCAST_UNAVAILABLE_WARNING)
 
         object_name = config.PODCAST_AUDIO_OBJECT_TEMPLATE.format(date=ctx.date)
@@ -96,7 +107,6 @@ class PodcastStep:
             title=f"Le Veilleur — {ctx.date}",
             audio_url=audio_url,
             duration_seconds=result.duration_seconds,
-            notebook_id=result.notebook_id,
         )
 
         try:
@@ -112,14 +122,6 @@ class PodcastStep:
         except ContentRepoError as exc:
             ctx.log.warning("podcast episode commit failed", extra={"error": str(exc)[:300]})
             return StepResult(warning=config.PODCAST_UNAVAILABLE_WARNING)
-
-        # Best-effort hygiene, never allowed to affect today's outcome — the Protocol promises
-        # this never raises, but the step guards anyway rather than trusting every adapter to.
-        try:
-            purged = self.notebooklm.purge_notebooks_older_than(config.PODCAST_NOTEBOOK_PURGE_DAYS)
-            ctx.log.info("podcast notebooks purged", extra={"count": purged})
-        except Exception:
-            ctx.log.warning("podcast notebook purge failed")
 
         ctx.log.info("podcast episode published", extra={"audio_url": audio_url})
         return StepResult(payload={"podcast": episode})

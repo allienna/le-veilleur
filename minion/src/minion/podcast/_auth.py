@@ -5,7 +5,7 @@
 
 `minion-sa` (the Job's own ambient Application Default Credentials in Cloud Run) impersonates
 the dedicated `podcast-sa` (infra/podcast.tf) via `roles/iam.serviceAccountTokenCreator` — no key
-material is stored for `podcast-sa` at all. Both `notebooklm.py` and `gcs.py` need the same
+material is stored for `podcast-sa` at all. Both `tts.py` and `gcs.py` need the same
 short-lived, impersonated bearer token, so it lives here once rather than twice.
 """
 

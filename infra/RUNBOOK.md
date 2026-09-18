@@ -194,37 +194,35 @@ exception:
 Prefer 3b whenever possible. Note the cost consequence: OAuth via the Max plan is metered against
 the subscription, an API key is billed per token and will move the monthly budget.
 
-### 3e. Podcast (NotebookLM Enterprise) — one-time setup
+### 3e. Podcast (script + Cloud Text-to-Speech) — one-time setup
+
+**History**: this step originally called NotebookLM Enterprise directly. A live run 400'd with
+`User must be assigned a license ... SUBSCRIPTION_TIER` — that product requires a Cloud
+Identity/Google Workspace organization backing the project
+(docs.cloud.google.com/gemini/enterprise/notebooklm-enterprise/docs/set-up-notebooklm), which a
+personal GCP project doesn't have and can't cheaply acquire. The step was rewritten to have
+Claude write a two-speaker French dialogue script (the same `claude -p` mechanism `/generate`
+uses) and Cloud Text-to-Speech (GA, no org/license requirement) synthesize it, alternating two
+Chirp 3 HD voices per speaker and concatenating the results. `podcast-sa` no longer needs any
+Discovery Engine role at all — just `roles/serviceusage.serviceUsageConsumer` so it can call an
+API billed against this project, plus its existing GCS bucket access.
 
 The `podcast` step needs no OAuth re-consent (it authenticates via
 `google.auth.impersonated_credentials` against the dedicated `podcast-sa`, not a stored token), but
 it does need one-time, deliberate infra work before its first real run:
 
-1. **Watch for a 403 on first real run.** `podcast-sa` is granted `roles/discoveryengine
-   .notebookLmUser` ("Cloud NotebookLM User") — confirmed against
-   docs.cloud.google.com/iam/docs/roles-permissions/discoveryengine, but at project scope that
-   role only covers `notebooks.create`/`.list`, not `sources.*` or `audioOverviews.*`. This
-   assumes (unconfirmed — common elsewhere in this product family, not stated for this API) that
-   creating a notebook makes the creator its resource-level Owner automatically. If
-   `notebooklm.py`'s `_add_sources` or `_create_audio_overview` calls 403, edit
-   `google_project_iam_member.podcast_notebooklm_user` in `infra/podcast.tf` to
-   `roles/discoveryengine.notebookLmOwner` ("Cloud NotebookLM Admin") instead, which does carry
-   `sources.*`/`audioOverviews.*` at project scope.
-   Separately: no `discoveryengine.notebooks.delete` permission exists anywhere in that IAM
-   reference, so `purge_notebooks_older_than`'s cleanup call may be a no-op against a
-   non-existent endpoint — it fails closed (logs, returns 0, never breaks the run), but don't
-   assume the 30-day notebook cleanup is actually happening until you've confirmed a real delete
-   call succeeds; if it can't, the notebooks will simply accumulate unpurged (the GCS audio
-   files still get deleted on schedule regardless, since that's a bucket lifecycle rule, not
-   dependent on this call).
-2. **Verify public object access is sufficient** for podcast-app RSS enclosure fetches: once
+1. **Verify public object access is sufficient** for podcast-app RSS enclosure fetches: once
    `infra/podcast.tf`'s bucket exists, `curl -I` a test object at
    `https://storage.googleapis.com/veilleur-app-podcast-audio/<object>` and confirm a 200 with a
    sane `Content-Type`/`Accept-Ranges` — no CDN/signed-URL layer should be needed given the rest of
    the site is already public and unauthenticated, but confirm rather than assume.
-3. `terraform apply` (after 1 and 2), then verify `roles/iam.serviceAccountTokenCreator` on
-   `podcast-sa` has propagated to `minion-sa` (IAM bindings can take up to a minute) before the
-   next scheduled run.
+2. `terraform apply`, then verify `roles/iam.serviceAccountTokenCreator` on `podcast-sa` has
+   propagated to `minion-sa` (IAM bindings can take up to a minute) before the next scheduled run.
+3. **Cost check on first real run**: `config.PODCAST_VOICE_A`/`_B` are Chirp 3 HD voices, which
+   carry a 1M-character/month free allowance (no expiration); expected volume is ~20k
+   characters/day (~600k/month), comfortably under it. If a run's logs show Cloud TTS returning
+   quota/billing errors, check `gcloud billing budgets list` for the podcast-specific alert
+   (§4) before assuming the free tier didn't apply.
 4. To disable the whole feature without touching anything else, set `podcast_enabled = false` in
    tfvars and re-apply (or, for a same-day change without redeploying Terraform,
    `gcloud run jobs update minion --region=europe-west1 --update-env-vars=PODCAST_ENABLED=false`).

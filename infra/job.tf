@@ -1,10 +1,10 @@
 # The Cloud Run Job (the Minion). Terraform owns the Job *shape*; the image tag is bumped
 # out-of-band by scripts/deploy-minion.sh (`gcloud run jobs update --image`), so `image` and the
 # client-metadata fields sit under ignore_changes. timeout=1800s is the 30-minute hard cap —
-# raised from 20 minutes to give the best-effort `podcast` step (up to an 18-minute bounded poll
-# for NotebookLM's audio-overview generation, config.PODCAST_GENERATION_TIMEOUT) room alongside
-# the other nine steps' typical duration, without shrinking the podcast step's budget to chase a
-# tighter ceiling; max_retries=0 — a failed run is not auto-retried, replay is a deliberate action.
+# raised from 20 minutes to give the best-effort `podcast` step (a `claude -p` script-writing
+# call plus one Cloud Text-to-Speech request per dialogue line, both synchronous, no polling)
+# comfortable room alongside the other nine steps' typical duration; max_retries=0 — a failed
+# run is not auto-retried, replay is a deliberate action.
 #
 # memory=1Gi is load-bearing, not a round number. At the Cloud Run default of 512Mi a 44-source
 # run was OOM-killed (signal 9) about five minutes into `generate`: the process is killed outright

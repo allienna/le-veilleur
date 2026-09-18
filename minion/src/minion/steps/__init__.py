@@ -15,7 +15,7 @@ from minion.fiches.ports import FicheGenerateRunner
 from minion.generate.ports import GenerateRunner
 from minion.ingest.ports import GmailClient, ScraperClient
 from minion.models import StepName
-from minion.podcast.ports import AudioStorage, NotebookLMClient
+from minion.podcast.ports import AudioStorage, AudioSynthesizer, ScriptWriter
 from minion.publish.ports import ContentRepository, ImageGenerator, PromptRewriter
 from minion.steps.base import Step, StepContext, StepResult
 from minion.steps.fiches import FichesStep
@@ -38,7 +38,8 @@ def build_pipeline(
     prompt_rewriter: PromptRewriter,
     content_repo: ContentRepository,
     fiche_runner: FicheGenerateRunner,
-    notebooklm_client: NotebookLMClient,
+    script_writer: ScriptWriter,
+    audio_synthesizer: AudioSynthesizer,
     audio_storage: AudioStorage,
 ) -> tuple[Step, ...]:
     """The production pipeline — every step real."""
@@ -55,7 +56,10 @@ def build_pipeline(
         StepName.github: GithubStep(content_repo=content_repo),
         StepName.fiches: FichesStep(runner=fiche_runner, content_repo=content_repo),
         StepName.podcast: PodcastStep(
-            notebooklm=notebooklm_client, audio_storage=audio_storage, content_repo=content_repo
+            script_writer=script_writer,
+            audio_synthesizer=audio_synthesizer,
+            audio_storage=audio_storage,
+            content_repo=content_repo,
         ),
     }
     return tuple(real[name] for name in STEP_ORDER)

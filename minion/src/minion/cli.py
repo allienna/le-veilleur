@@ -22,7 +22,7 @@ from minion.models import RunStatus
 from minion.notify.message import build_message
 from minion.notify.ports import Notifier, NotifyError
 from minion.orchestrator import run_pipeline
-from minion.podcast.ports import AudioStorage, NotebookLMClient
+from minion.podcast.ports import AudioStorage, AudioSynthesizer, ScriptWriter
 from minion.publish.ports import ContentRepository, ImageGenerator, PromptRewriter
 from minion.steps import build_pipeline
 from minion.store.memory import InMemoryLockStore, InMemoryRunStore
@@ -58,7 +58,8 @@ def build_clients() -> tuple[
     PromptRewriter,
     ContentRepository,
     FicheGenerateRunner,
-    NotebookLMClient,
+    ScriptWriter,
+    AudioSynthesizer,
     AudioStorage,
     Notifier,
 ]:
@@ -70,7 +71,8 @@ def build_clients() -> tuple[
     from minion.ingest.scraper import LocalExtractorClient
     from minion.notify.gmail import GmailNotifier
     from minion.podcast.gcs import GcsAudioStorage
-    from minion.podcast.notebooklm import NotebookLMEnterpriseClient
+    from minion.podcast.script import ClaudeScriptWriter
+    from minion.podcast.tts import GoogleCloudTtsSynthesizer
     from minion.publish.github import GitHubContentRepository
     from minion.publish.imagen import ClaudePromptRewriter, GeminiImageGenerator
 
@@ -82,7 +84,8 @@ def build_clients() -> tuple[
         ClaudePromptRewriter(),
         GitHubContentRepository(),
         ClaudeFicheGenerateRunner(),
-        NotebookLMEnterpriseClient(),
+        ClaudeScriptWriter(),
+        GoogleCloudTtsSynthesizer(),
         GcsAudioStorage(),
         GmailNotifier(),
     )
@@ -114,7 +117,8 @@ def run(date: str | None) -> None:
         prompt_rewriter,
         content_repo,
         fiche_runner,
-        notebooklm_client,
+        script_writer,
+        audio_synthesizer,
         audio_storage,
         notifier,
     ) = build_clients()
@@ -126,7 +130,8 @@ def run(date: str | None) -> None:
         prompt_rewriter,
         content_repo,
         fiche_runner,
-        notebooklm_client,
+        script_writer,
+        audio_synthesizer,
         audio_storage,
     )
     data: dict[str, object] = {}

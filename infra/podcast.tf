@@ -1,26 +1,26 @@
-# Podcast feature (NotebookLM Enterprise): a dedicated, minimally-scoped SA — never the Minion's
-# own runtime SA — plus a bucket for the daily audio file. minion-sa impersonates this SA at
-# runtime rather than holding a stored key, so there is no new secret to provision.
+# Podcast feature (two-speaker script via Claude + Cloud Text-to-Speech): a dedicated,
+# minimally-scoped SA — never the Minion's own runtime SA — plus a bucket for the daily audio
+# file. minion-sa impersonates this SA at runtime rather than holding a stored key, so there is
+# no new secret to provision.
+#
+# Originally built against NotebookLM Enterprise; abandoned after a live 400 traced to a
+# license/subscription-tier requirement that only exists inside a Cloud Identity/Google
+# Workspace organization (docs.cloud.google.com/gemini/enterprise/notebooklm-enterprise/docs/
+# set-up-notebooklm) — not available to a personal GCP project. Cloud Text-to-Speech is GA, has
+# no such organizational requirement, and needs no dedicated custom role: any principal with the
+# API enabled and basic project access can call it, billed against whichever project's quota it
+# authenticates under (`roles/serviceusage.serviceUsageConsumer` below is what makes podcast-sa
+# that principal, rather than relying on it inheriting anything from minion-sa).
 
-# ─── Podcast SA: NotebookLM Enterprise + the audio bucket, nothing else ──────────────────
+# ─── Podcast SA: Cloud TTS + the audio bucket, nothing else ──────────────────────────────
 resource "google_service_account" "podcast" {
   account_id   = "podcast-sa"
-  display_name = "Le Veilleur podcast (NotebookLM Enterprise) SA"
+  display_name = "Le Veilleur podcast (script + Cloud TTS) SA"
 }
 
-# "Cloud NotebookLM User" — confirmed against docs.cloud.google.com/iam/docs/roles-permissions
-# /discoveryengine: at project scope it grants only notebooks.create/list (+ accounts.create,
-# locations.completeExternalIdentities, resourcemanager.projects.get/list) — NOT
-# audioOverviews.* or sources.*, which live only in "Cloud NotebookLM Admin"
-# (roles/discoveryengine.notebookLmOwner, project-wide) or the per-notebook Owner/Editor roles
-# (roles/discoveryengine.notebook{Owner,Editor}, resource-scoped, can't be bound before a
-# notebook exists). Starting with the least-privileged option on the working assumption — common
-# elsewhere in this product family, unconfirmed here — that creating a notebook makes the creator
-# its resource-level Owner automatically. If a real run 403s on sources.batchCreate or
-# audioOverviews.create, switch this to notebookLmOwner.
-resource "google_project_iam_member" "podcast_notebooklm_user" {
+resource "google_project_iam_member" "podcast_tts_consumer" {
   project = var.project_id
-  role    = "roles/discoveryengine.notebookLmUser"
+  role    = "roles/serviceusage.serviceUsageConsumer"
   member  = "serviceAccount:${google_service_account.podcast.email}"
 }
 
@@ -32,7 +32,7 @@ resource "google_service_account_iam_member" "minion_impersonates_podcast" {
   member             = "serviceAccount:${google_service_account.minion.email}"
 }
 
-# ─── Audio bucket: 30-day lifecycle, aligned with the NotebookLM notebook purge window ────
+# ─── Audio bucket: 30-day lifecycle, matching the site/RSS retention window ──────────────
 resource "google_storage_bucket" "podcast_audio" {
   name                        = "${var.project_id}-podcast-audio"
   location                    = var.region

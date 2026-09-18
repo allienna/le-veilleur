@@ -20,7 +20,7 @@ from minion.ingest.fakes import FakeGmailClient, FakeScraperClient
 from minion.ingest.models import Newsletter, ScrapedSource, SourceOutcome
 from minion.models import Run, RunStatus
 from minion.orchestrator import run_pipeline
-from minion.podcast.fakes import FakeAudioStorage, FakeNotebookLMClient
+from minion.podcast.fakes import FakeAudioStorage, FakeAudioSynthesizer, FakeScriptWriter
 from minion.publish.fakes import (
     FakeContentRepository,
     FakeImageGenerator,
@@ -66,7 +66,8 @@ def _run(gmail: FakeGmailClient, jina: FakeScraperClient, run_store, lock_store,
         FakePromptRewriter(),
         FakeContentRepository(),
         FakeFicheGenerateRunner(),
-        FakeNotebookLMClient(),
+        FakeScriptWriter(),
+        FakeAudioSynthesizer(),
         FakeAudioStorage(),
     )
     return run_pipeline(DATE, run_store=run_store, lock_store=lock_store, clock=clock, steps=steps)

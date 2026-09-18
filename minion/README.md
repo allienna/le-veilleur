@@ -21,7 +21,7 @@ uv run python -m minion run --date 2026-09-01   # defaults to today
 | 7 | `imagen` | Imagen 4 Fast via the Gemini API → PNG. On a moderation block: one softened rewrite, then ship without an image. |
 | 8 | `github` | Commit the image, the article markdown and the LinkedIn post through the GitHub Contents API. |
 | 9 | `fiches` | One per-source analysis per *cited* source, committed to the site. Non-blocking by design. |
-| 10 | `podcast` | A NotebookLM Enterprise "deep dive" audio overview from the same validated sources, uploaded to GCS and committed as a site entry. `PODCAST_ENABLED` toggle; non-blocking by design — soft-fails to a warning on any NotebookLM/GCS/commit failure. |
+| 10 | `podcast` | A two-speaker French dialogue script (`claude -p`) from the same validated sources, synthesized by Cloud Text-to-Speech and uploaded to GCS, committed as a site entry. `PODCAST_ENABLED` toggle; non-blocking by design — soft-fails to a warning on any script/TTS/GCS/commit failure. |
 
 Each step records `running` → terminal with timestamps; a raising step halts the run. A step may
 also end the run gracefully (`skipped`) or latch a warning that downgrades the final status to

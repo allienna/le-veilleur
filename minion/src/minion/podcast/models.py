@@ -25,7 +25,6 @@ class PodcastArtifact(BaseModel):
     title: str
     audio_url: str
     duration_seconds: int | None = None
-    notebook_id: str | None = None
 
     @property
     def available(self) -> bool:

@@ -1,61 +1,68 @@
-"""Podcast ports — the only NotebookLM Enterprise / GCS surfaces the `podcast` step knows.
+"""Podcast ports — the only script-writer / TTS / GCS surfaces the `podcast` step knows.
 
-Mirrors `publish/ports.py`: the podcast step depends on these Protocols, `notebooklm.py` /
-`gcs.py` implement them over the real APIs, and `fakes.py` provides hermetic doubles. Retry lives
-in the step for the GitHub commit only — NotebookLM generation and the GCS upload are each a
-single best-effort attempt per run, since a failure here must never cost the day's article.
+Mirrors `publish/ports.py`: the podcast step depends on these Protocols, `script.py` / `tts.py`
+/ `gcs.py` implement them over the real APIs, and `fakes.py` provides hermetic doubles. Each of
+the three calls (script, synthesis, upload) is a single best-effort attempt per run — a failure
+here must never cost the day's article.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
+
+from minion.ingest.models import ScrapedSource
 
 
 class PodcastGenerationError(RuntimeError):
-    """NotebookLM could not produce a usable audio overview — notebook creation, source
-    ingestion, audio-overview generation, or the bounded poll all fold into this one exception,
-    exactly as `GeminiImageGenerator` collapses every Imagen failure mode into
-    `ImagenBlockedError`. The `podcast` step catches this; it is never a hard run failure on its
-    own — a missing episode must not cost the day's article.
-    """
+    """The two-speaker script could not be written — subprocess/transport failure, a malformed
+    or empty response, or the retry budget exhausted. Caught by the `podcast` step; never a hard
+    run failure on its own — a missing episode must not cost the day's article."""
+
+
+class AudioSynthesisError(RuntimeError):
+    """Cloud Text-to-Speech could not synthesize the script — auth/quota/5xx/network, or an
+    unexpected response shape. Caught by the `podcast` step alongside `PodcastGenerationError`."""
 
 
 class AudioUploadError(RuntimeError):
     """Uploading the generated audio to the podcast bucket failed (transport or non-2xx).
-    Caught by the `podcast` step alongside `PodcastGenerationError`."""
+    Caught by the `podcast` step alongside the other two."""
+
+
+@dataclass(frozen=True)
+class ScriptTurn:
+    """One line of the two-speaker dialogue script."""
+
+    speaker: Literal["A", "B"]
+    text: str
 
 
 @dataclass(frozen=True)
 class AudioOverviewResult:
-    """One generated audio overview, before it is uploaded anywhere."""
+    """The synthesized, concatenated episode audio, before it is uploaded anywhere."""
 
     audio_bytes: bytes
     content_type: str
     duration_seconds: int | None
-    notebook_id: str | None
 
 
-class NotebookLMClient(Protocol):
-    """Drives one day's NotebookLM Enterprise notebook end to end."""
+class ScriptWriter(Protocol):
+    """Turns the day's validated sources into a two-speaker dialogue script."""
 
-    def generate_episode(
-        self, date: str, sources: list[tuple[str, str]], language_code: str
-    ) -> AudioOverviewResult:
-        """Create a notebook named `date`, batch-add `sources` (each an `(url, title)` pair) as
-        web-content sources, request a default-focus audio overview in `language_code`, and poll
-        until it completes or `config.PODCAST_GENERATION_TIMEOUT` elapses.
-
-        Raises `PodcastGenerationError` on any failure mode — notebook creation, source
-        ingestion, generation, or timeout — so the step never needs to know which of the
-        underlying API calls failed.
-        """
+    def write_script(self, sources: list[ScrapedSource], target_words: int) -> list[ScriptTurn]:
+        """Ask the model for a two-speaker (`A`/`B`) French dialogue script covering `sources`,
+        aiming for roughly `target_words` words total. Raises `PodcastGenerationError` on any
+        transport failure or a response that doesn't parse into turns."""
         ...
 
-    def purge_notebooks_older_than(self, days: int) -> int:
-        """Best-effort hygiene: delete every date-named notebook older than `days`, return the
-        count deleted. Never raises — the adapter itself logs and swallows internal failures,
-        since this is pure cleanup and must never affect today's outcome."""
+
+class AudioSynthesizer(Protocol):
+    """Renders a dialogue script to a single audio file."""
+
+    def synthesize(self, turns: list[ScriptTurn], language_code: str) -> AudioOverviewResult:
+        """Synthesize each turn with its speaker's voice and concatenate them in order into one
+        audio file. Raises `AudioSynthesisError` on any failure mode."""
         ...
 
 

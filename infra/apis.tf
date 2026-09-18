@@ -17,7 +17,7 @@ locals {
     "cloudbuild.googleapis.com",       # 2nd-gen function source build
     "eventarc.googleapis.com",         # 2nd-gen function Pub/Sub trigger
     "billingbudgets.googleapis.com",   # the budget itself
-    "discoveryengine.googleapis.com",  # NotebookLM Enterprise (Pre-GA, v1alpha) — the podcast step
+    "texttospeech.googleapis.com",     # the podcast step's audio synthesis
     "storage.googleapis.com",          # the podcast audio bucket
     "iamcredentials.googleapis.com",   # minion-sa impersonating podcast-sa (generateAccessToken)
   ]

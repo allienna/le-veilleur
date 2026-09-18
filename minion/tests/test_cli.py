@@ -15,8 +15,8 @@ from minion.ingest.fakes import FakeGmailClient, FakeScraperClient
 from minion.ingest.ports import GmailClient, ScraperClient
 from minion.notify.fakes import FakeNotifier
 from minion.notify.ports import Notifier
-from minion.podcast.fakes import FakeAudioStorage, FakeNotebookLMClient
-from minion.podcast.ports import AudioStorage, NotebookLMClient
+from minion.podcast.fakes import FakeAudioStorage, FakeAudioSynthesizer, FakeScriptWriter
+from minion.podcast.ports import AudioStorage, AudioSynthesizer, ScriptWriter
 from minion.publish.fakes import (
     FakeContentRepository,
     FakeImageGenerator,
@@ -65,7 +65,8 @@ def _fake_clients(
     PromptRewriter,
     ContentRepository,
     FicheGenerateRunner,
-    NotebookLMClient,
+    ScriptWriter,
+    AudioSynthesizer,
     AudioStorage,
     Notifier,
 ]:
@@ -77,7 +78,8 @@ def _fake_clients(
         FakePromptRewriter(),
         FakeContentRepository(),
         FakeFicheGenerateRunner(),
-        FakeNotebookLMClient(),
+        FakeScriptWriter(),
+        FakeAudioSynthesizer(),
         FakeAudioStorage(),
         notifier if notifier is not None else FakeNotifier(),
     )

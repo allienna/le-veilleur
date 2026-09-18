@@ -252,40 +252,54 @@ NOTIFY_TO_ADDRESS: str = "aurelien.allienne@gmail.com"
 CLOUD_RUN_REGION: str = "europe-west1"
 CLOUD_RUN_JOB_NAME: str = "minion"
 
-# --- Podcast: NotebookLM Enterprise audio overview ----------------------------------------
+# --- Podcast: two-voice script (Claude) + Google Cloud Text-to-Speech --------------------
 # Best-effort, last in STEP_ORDER (see the fiches comment above) — never blocks the article.
-# Auth is by impersonating a dedicated SA (infra/podcast.tf), not a stored secret; see
-# minion/src/minion/podcast/_auth.py.
+#
+# Originally attempted via NotebookLM Enterprise; abandoned after a live 400 traced to
+# "User must be assigned a license ... SUBSCRIPTION_TIER" — that product requires a Cloud
+# Identity/Google Workspace organization (docs.cloud.google.com/gemini/enterprise/
+# notebooklm-enterprise/docs/set-up-notebooklm: "you must have your organization's identity
+# provider (IdP) configured"), which a personal GCP project doesn't have. This path instead
+# writes a two-speaker dialogue script with the same `claude` CLI /generate already uses, then
+# synthesizes it with Cloud Text-to-Speech (GA, no org/license requirement, plain IAM).
+# Auth for TTS + the GCS upload is by impersonating a dedicated SA (infra/podcast.tf), not a
+# stored secret; see minion/src/minion/podcast/_auth.py.
 
 # Ordinary, reversible ops toggle (infra/job.tf) read directly as an env var — not a secret, and
 # not gated behind the ANTHROPIC_API_KEY-style break-glass ritual (RUNBOOK.md §3c is a different
 # kind of exception; this is a plain feature flag).
 PODCAST_ENABLED_ENV_VAR: str = "PODCAST_ENABLED"
 
-PODCAST_LANGUAGE_CODE: str = "fr"
-PODCAST_NOTEBOOK_NAME_TEMPLATE: str = "{date}"  # mirrors the deprecated PoC's naming
-PODCAST_NOTEBOOK_PURGE_DAYS: int = 30
+# BCP-47, matching the Cloud TTS voice locale below (fr-FR-*) — not the short "fr" the site's RSS
+# feed uses in its own <language> tag, a separate, unrelated language-code convention.
+PODCAST_LANGUAGE_CODE: str = "fr-FR"
 
 # Deterministic given the project id + Terraform account_id (infra/podcast.tf) — no secret
 # material, so no Secret Manager round-trip needed.
 PODCAST_SA_EMAIL: str = "podcast-sa@veilleur-app.iam.gserviceaccount.com"
 PODCAST_BUCKET_NAME: str = "veilleur-app-podcast-audio"
-# TODO(verify against the real API response): confirm NotebookLM Enterprise's actual
-# audio-overview output container/codec (mp3/wav/ogg) — adjust the extension and the adapter's
-# upload Content-Type together if it is not MP3.
 PODCAST_AUDIO_OBJECT_TEMPLATE: str = "{date}.mp3"
 PODCAST_MD_PATH_TEMPLATE: str = "site/src/content/podcasts/{date}.md"
 
-# ~20 min is a quality target, not a guaranteed parameter — NotebookLM's default audio-overview
-# length varies with source volume. Pass it as a length/format hint to audioOverviews.create if
-# the (Pre-GA) API exposes one; TODO(verify against the real API docs).
+# Two Chirp 3 HD French voices (confirmed real, current voice names against
+# docs.cloud.google.com/text-to-speech/docs/list-voices-and-types) — one per speaker, alternated
+# by the script's `speaker` field. Chirp 3 HD chosen over Neural2 for quality; both tiers carry
+# a 1M-character/month free allowance (no expiration) that this feature's expected volume
+# (~20k characters/day, ~600k/month) comfortably fits under.
+PODCAST_VOICE_A: str = "fr-FR-Chirp3-HD-Kore"  # female
+PODCAST_VOICE_B: str = "fr-FR-Chirp3-HD-Puck"  # male
+
+# ~20 min is a quality target for the script prompt, not a guaranteed output length — the model
+# is asked to aim for it, not held to it programmatically.
 PODCAST_TARGET_DURATION: timedelta = timedelta(minutes=20)
-# Bounded synchronous poll for audioOverviews.create to finish, within the same Cloud Run Job run
-# (no cross-run state, no second scheduler). Raised from an initial 12 minutes to give a longer,
-# more qualitative episode room to render; infra/job.tf's Job timeout was raised to 1800s (30 min)
-# to match. Abandon cleanly past this — best-effort, per the fiches/imagen precedent.
-PODCAST_GENERATION_TIMEOUT: timedelta = timedelta(minutes=18)
-PODCAST_POLL_INTERVAL: timedelta = timedelta(seconds=15)
+# Average spoken-word rate used only to turn PODCAST_TARGET_DURATION into a word-count instruction
+# for the script prompt, and to estimate PodcastArtifact.duration_seconds from the actual script
+# afterwards (no audio-duration inspection library in the dependency set).
+PODCAST_WORDS_PER_MINUTE: int = 150
+
+PODCAST_SCRIPT_TIMEOUT: timedelta = timedelta(minutes=6)  # one `claude -p` call, full sources
+PODCAST_SCRIPT_TRANSPORT_RETRIES: int = 1
+PODCAST_TTS_TIMEOUT: timedelta = timedelta(seconds=30)  # per line, Cloud TTS is synchronous
 
 # Run-level warning latched when the podcast step could not produce/publish an episode.
 PODCAST_UNAVAILABLE_WARNING: str = "podcast_unavailable"
