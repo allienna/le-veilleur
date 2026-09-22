@@ -297,7 +297,7 @@ PODCAST_TARGET_DURATION: timedelta = timedelta(minutes=20)
 # afterwards (no audio-duration inspection library in the dependency set).
 PODCAST_WORDS_PER_MINUTE: int = 150
 
-PODCAST_SCRIPT_TIMEOUT: timedelta = timedelta(minutes=6)  # one `claude -p` call
+PODCAST_SCRIPT_TIMEOUT: timedelta = timedelta(minutes=9)  # one `claude -p` call
 PODCAST_SCRIPT_TRANSPORT_RETRIES: int = 1
 PODCAST_TTS_TIMEOUT: timedelta = timedelta(seconds=30)  # per line, Cloud TTS is synchronous
 
@@ -305,9 +305,14 @@ PODCAST_TTS_TIMEOUT: timedelta = timedelta(seconds=30)  # per line, Cloud TTS is
 # cite and quote specific sources under the copyright rules), the podcast script only needs to
 # *synthesize across* sources, not reproduce any one of them faithfully. A first real run timed
 # out at PODCAST_SCRIPT_TIMEOUT feeding every OK source's full extracted markdown, unbounded —
-# capping each source to its first N characters keeps the whole day's input small regardless of
-# source count, which is what actually fixes the timeout (it isn't sheer instruction complexity).
+# capping each source to its first N characters keeps any one source small.
 PODCAST_SOURCE_EXCERPT_CHARS: int = 1500
+
+# The excerpt cap above bounds per-source size but not source *count* — runtime tracks the number
+# of sources the model has to read and pick across, not total bytes. 39/48 OK sources finished
+# comfortably; 58/78 both timed out at PODCAST_SCRIPT_TIMEOUT even with excerpts capped. Capping
+# the count is what actually bounds the call regardless of how big a scrape day is.
+PODCAST_MAX_SOURCES: int = 45
 
 # Run-level warning latched when the podcast step could not produce/publish an episode.
 PODCAST_UNAVAILABLE_WARNING: str = "podcast_unavailable"

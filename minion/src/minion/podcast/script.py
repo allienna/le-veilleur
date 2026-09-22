@@ -13,7 +13,9 @@ Each source's markdown is truncated to `config.PODCAST_SOURCE_EXCERPT_CHARS` bef
 to the context file — a first real run timed out feeding every OK source's full extracted
 content, unbounded by anything like `/generate`'s `assemble_context` token budget. The script
 only needs to synthesize across sources, not quote any one of them faithfully, so a short excerpt
-per source is enough and keeps the call fast regardless of how many sources the day has.
+per source is enough. The *caller* (`steps/podcast.py`) additionally caps how many sources reach
+this module at all (`config.PODCAST_MAX_SOURCES`) — excerpt length bounds per-source size, but
+runtime tracks source count, and high-volume days still timed out with excerpts alone capped.
 """
 
 from __future__ import annotations

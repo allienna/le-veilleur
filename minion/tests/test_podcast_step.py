@@ -93,6 +93,19 @@ def test_happy_path_publishes_episode(monkeypatch: pytest.MonkeyPatch) -> None:
     assert repo.calls[0].path_content().keys() == {f"site/src/content/podcasts/{DATE}.md"}
 
 
+def test_source_count_capped_before_script_writer(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(config.PODCAST_ENABLED_ENV_VAR, raising=False)
+    writer = FakeScriptWriter(outcomes=[_turns()])
+    synth = FakeAudioSynthesizer(outcomes=[_result()])
+    storage = FakeAudioStorage(outcomes=[f"https://storage.googleapis.com/bucket/{DATE}.mp3"])
+    repo = FakeContentRepository()
+    n = config.PODCAST_MAX_SOURCES + 20
+    _step(writer, synth, storage, repo).run(_ctx(sources=_sources(n)))
+
+    sources, _ = writer.calls[0]
+    assert len(sources) == config.PODCAST_MAX_SOURCES
+
+
 def test_disabled_via_env_var_skips_entirely(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(config.PODCAST_ENABLED_ENV_VAR, "false")
     writer = FakeScriptWriter(outcomes=[_turns()])

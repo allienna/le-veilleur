@@ -80,9 +80,10 @@ class PodcastStep:
         if not ok_sources:
             ctx.log.info("no OK sources; skipping podcast episode")
             return StepResult()
+        script_sources = ok_sources[: config.PODCAST_MAX_SOURCES]
 
         try:
-            turns = self.script_writer.write_script(ok_sources, target_words=_target_words())
+            turns = self.script_writer.write_script(script_sources, target_words=_target_words())
         except PodcastGenerationError as exc:
             ctx.log.warning("podcast script generation failed", extra={"error": str(exc)[:300]})
             return StepResult(warning=config.PODCAST_UNAVAILABLE_WARNING)
