@@ -1,0 +1,40 @@
+---
+title: "The problem with wild code? IT can't see it coming."
+date: 2026-10-02
+url: "https://tracking.tldrnewsletter.com/CL0/https:%2F%2Fwww.cio.com%2Farticle%2F4228674%2Fthe-problem-with-wild-code-it-cant-see-it-coming.html%3Futm_source=tldrit/1/010001a0f767d964-2ab46dd6-3d81-4d41-83b1-af7ba708d553-000000/NQvVgtLxS6M5EIptfFTQ6URFPAP8hs1BT-KQNqKYSzc=452"
+keywords: ["shadow IT", "IA générative", "gouvernance", "wild code", "visibilité", "automatisation"]
+theme: "Sécurité"
+tone: "opinion"
+used_in: ["2026-10-02"]
+---
+
+## Résumé
+L'article décrit le phénomène du « wild code » : du code ou des automatisations créés avec l'aide de l'IA par des équipes non techniques (finance, RH, opérations), en dehors de tout dépôt ou processus de revue, et donc invisible pour l'IT. Un cas vécu sur Reddit illustre le problème même au sein d'équipes d'ingénierie outillées : du code fonctionnel mais incohérent, dont personne ne comprend plus la logique. Selon l'étude IBM 2026 citée, 77% des organisations jugent que l'adoption de l'IA dépasse déjà leur capacité de gouvernance, et 70% constatent que les métiers déploient des outils plus vite que l'IT ne peut les suivre. La thèse centrale, portée par Brad Rumph (Field CTO chez Tines), est que le vrai problème n'est pas l'absence de gouvernance mais l'absence de visibilité : il faut d'abord cartographier ce qui existe avant de pouvoir le gouverner.
+
+## Points clés
+- Le « wild code » est produit par des non-développeurs (finance, RH, opérations) via des outils IA type Claude Code ou Codex, sans jamais entrer dans un dépôt de code — donc invisible aux outils de scan classiques.
+- Même au sein des équipes d'ingénierie, du code généré par IA peut passer tous les tests tout en étant incohérent (logique dupliquée, décisions non documentées), comme le montre l'exemple de l'audit backend relaté sur Reddit.
+- Les comités de pilotage IA et les audits périodiques sont structurellement trop lents : ils fonctionnent au rythme des réunions, alors que le code IA se multiplie « à la vitesse de la machine ».
+- Selon Rumph, une gouvernance fondée sur la prédiction de comportements à risque « vieillit mal », car les usages évoluent plus vite que les cycles de revue censés les encadrer.
+- La solution proposée privilégie l'inventaire continu avant la prédiction : savoir en permanence quelles automatisations existent, quelles données elles touchent et qui en est responsable.
+- Cette logique de visibilité doit s'étendre au-delà des dépôts de code, vers les plateformes de workflow et outils internes utilisés par les métiers — c'est l'argument de vente mis en avant pour la plateforme Tines 3B.
+
+## Analyse approfondie
+L'article s'appuie sur un cas concret : un développeur charge d'auditer un backend dont 60% du code avait été écrit avec l'aide de l'IA. En apparence, tout était conforme — pas de faille d'injection, pas de race condition, bonne couverture de tests. Mais une lecture ligne à ligne révèle des fonctions logiquement liées dispersées dans des fichiers sans rapport (traces de sessions IA isolées), un middleware d'authentification réécrit trois fois de façons légèrement différentes, et une expiration de jetons JWT à 7 jours sur un produit fintech dont personne ne connaissait la justification. Le code fonctionnait, mais sa logique n'était comprise par (presque) personne.
+
+L'auteur souligne que ce cas s'est produit dans une équipe d'ingénierie dotée de revues de code, de dépôts et d'outils de scan — l'environnement le mieux équipé pour détecter ce genre de problème. Ce qui inquiète davantage, selon lui, c'est ce qui se passe ailleurs dans l'organisation : des outils comme Claude Code ou Codex permettent désormais aux équipes finance, opérations ou RH de construire leurs propres logiciels, souvent sans même savoir que ce qu'elles produisent devrait être audité.
+
+L'article cite l'étude IBM 2026 Tech Leader Study : 77% des organisations estiment que l'adoption de l'IA dépasse déjà leurs capacités de gouvernance, et 70% constatent que les métiers déploient des technologies plus vite que l'IT ne parvient à les suivre. Pour l'auteur, ces chiffres pointent un problème de visibilité, et non de politique interne : la meilleure charte d'usage de l'IA ne sert à rien face à des applications, agents et automatisations dont l'existence même est inconnue.
+
+Brad Rumph, Field CTO chez Tines, est cité pour marquer la différence entre l'usage de l'IA en ingénierie et ailleurs : « L'automatisation que personne ne voit est construite par des gens en finance, en opérations ou en RH, qui ne se considèrent pas comme des développeurs. Elle n'entre jamais dans un dépôt, donc le scan de code ne la trouvera jamais. » L'article donne des exemples : un recruteur qui construit un workflow pour trier des candidatures, ou un analyste financier qui automatise un rapport touchant des données de revenus sensibles. Aucun des deux n'apparaît dans un tableau de bord de sécurité, car les outils conçus pour repérer le code à risque n'ont jamais été pensés pour surveiller ces usages.
+
+Face à ce constat, la réaction naturelle consiste à renforcer la supervision : comité de pilotage IA, audits périodiques, processus de revue pour tout projet lié à l'IA. L'article reconnaît que ces initiatives ne sont pas déraisonnables, mais souligne qu'elles partagent un même défaut : elles présupposent que l'on sait déjà où chercher. Les comités de gouvernance fonctionnent au rythme des réunions, pas à celui du code généré par IA. Le « wild code » — ce code non gouverné, non approuvé, invisible, qui se propage dans l'organisation — avance désormais à la vitesse de la machine. Le temps qu'un comité identifie et encadre un schéma à risque, les employés ont souvent déjà trouvé trois autres façons de résoudre le même problème. Les audits, de leur côté, ne détectent que ce qui subsiste au moment où l'on va chercher, sans rien dire de ce qui a déjà été cassé, abandonné ou discrètement modifié dans l'intervalle.
+
+Rumph résume ainsi la fragilité de cette approche : « Une gouvernance construite sur la prédiction de comportements à risque spécifiques vieillit mal, parce que les comportements changent plus vite que le cycle de revue qui a produit la liste. » La conclusion de l'auteur est cinglante : la plupart des organisations n'échouent pas à gouverner le code généré par IA — elles échouent d'abord à le voir, et aucun rythme de comité ou d'audit ne peut corriger cela seul.
+
+La dernière partie de l'article défend une inversion de priorité : la visibilité doit précéder la gouvernance, pas l'inverse. Selon Rumph, il faut construire « une visibilité continue sur ce que sont le code et les automatisations générés par IA, quelles données ils touchent, et qui en est responsable ». Cette visibilité doit dépasser les dépôts de code pour couvrir les outils que les métiers utilisent réellement pour construire : plateformes de workflow, outils d'automatisation interne, tout endroit où un employé peut décrire un problème à une IA et recevoir un logiciel fonctionnel en retour. Sans cela, les politiques et processus de revue ne couvrent que la fraction de l'organisation qui sait déjà qu'elle doit être encadrée.
+
+C'est précisément le problème que la plateforme Tines 3B est présentée comme résolvant : un environnement unique où chaque workflow, agent et automatisation est visible dès sa création, quel que soit son créateur ou son département. L'article conclut que l'IA évolue si vite que les employés n'ont simplement pas eu le temps d'assimiler les règles — en particulier ceux qui ne s'étaient jamais imaginés en train de construire des logiciels. D'où la nécessité que la visibilité ne dépende pas du bon comportement des employés, mais soit intégrée directement dans l'infrastructure numérique de l'organisation.
+
+## Pourquoi ça compte
+Ce cas illustre un risque émergent central pour la veille sécurité/IA : la démocratisation des outils de type Claude Code/Codex déplace le shadow IT du simple usage de SaaS non autorisés vers la création de véritables logiciels par des non-développeurs, hors de portée des contrôles de sécurité traditionnels fondés sur les dépôts de code.
