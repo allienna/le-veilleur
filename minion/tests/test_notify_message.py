@@ -5,7 +5,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from minion.config import PARIS_TZ
-from minion.generate.models import ArticleFrontmatter, GeneratedArticle
+from minion.generate.models import (
+    ArticleFrontmatter,
+    AssembledContext,
+    ContextSource,
+    GeneratedArticle,
+)
 from minion.ingest.models import ScrapedSource, SourceOutcome, SourceSet
 from minion.models import Run, RunStatus, RunStep, StepName
 from minion.notify.message import build_message
@@ -222,3 +227,59 @@ def test_no_podcast_section_when_unavailable() -> None:
     episode = PodcastArtifact(date=DATE, title="T", audio_url="")
     _subject, body = build_message(run, {"article": _ARTICLE, "podcast": episode})
     assert "Écouter l'épisode" not in body
+
+
+def test_subject_carries_the_article_title() -> None:
+    article = _ARTICLE.model_copy(
+        update={"frontmatter": ArticleFrontmatter(title="Vos requêtes", date=DATE, themes=["Data"])}
+    )
+    subject, _ = build_message(
+        _run(RunStatus.success, steps=[_github_success()]), {"article": article}
+    )
+    assert subject == f"Le Veilleur — {DATE} — OK — Vos requêtes"
+
+
+def test_subject_has_no_title_without_an_article() -> None:
+    subject, _ = build_message(_run(RunStatus.failure), {})
+    assert subject == f"Le Veilleur — {DATE} — KO"
+
+
+def test_sources_section_lists_cited_read_and_excluded_sources() -> None:
+    tracked = "https://tracking.tldrnewsletter.com/CL0/https:%2F%2Fpola.rs%2Fposts%2Fpolars-2/1/abc"
+    sources = SourceSet(
+        sources=[
+            ScrapedSource(url=tracked, outcome=SourceOutcome.ok, title="Polars 2.0", markdown="m"),
+            ScrapedSource(
+                url="https://b.io/x", outcome=SourceOutcome.ok, title="Read", markdown="m"
+            ),
+            ScrapedSource(
+                url="https://c.io/dup", outcome=SourceOutcome.ok, title="Dup", markdown="m"
+            ),
+            ScrapedSource(url="https://pay.io/p", outcome=SourceOutcome.paywalled),
+            ScrapedSource(url="https://down.io/d", outcome=SourceOutcome.failed),
+        ]
+    )
+    context = AssembledContext(
+        sources=[
+            ContextSource(url=tracked, title="Polars 2.0", markdown="m", theme_hint="Data"),
+            ContextSource(url="https://b.io/x", title="Read", markdown="m", theme_hint="IA"),
+        ]
+    )
+    article = _ARTICLE.model_copy(update={"body": f"Texte [[1]({tracked})]"})
+    _, body = build_message(
+        _run(RunStatus.success, steps=[_github_success()]),
+        {"article": article, "sources": sources, "context": context},
+    )
+    cited = body.index("Citées dans l&#x27;article (1)")
+    read = body.index("Lues par Claude, non citées (1)")
+    excluded = body.index("Écartées avant Claude (3)")
+    assert cited < body.index("Polars 2.0") < read < body.index(">Read<") < excluded
+    assert "pola.rs · Data" in body  # tracked link shows the real target host
+    assert "Dup</a>" in body and "doublon ou plafond IA" in body
+    assert "pay.io</a>" in body and "payante" in body
+    assert "down.io</a>" in body and "échec du téléchargement" in body
+
+
+def test_no_sources_section_without_a_source_set() -> None:
+    _, body = build_message(_run(RunStatus.failure), {})
+    assert "Sources du jour" not in body
