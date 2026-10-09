@@ -39,8 +39,7 @@ _PROMPT_TEMPLATE = (
     "d'équivalent courant en français.\n"
     "- « Pourquoi ça compte » : 1-2 phrases sur la pertinence pour une veille tech.\n\n"
     "Réponds avec UN SEUL objet JSON, sans texte autour, avec exactement ces clés :\n"
-    '{{"theme": "<un seul thème parmi : IA, Leadership, Tech, Sécurité, Data, '
-    'Géopolitique, Autre>", '
+    '{{"theme": "<un seul thème parmi : {themes}, Autre>", '
     '"keywords": ["<3 à 6 mots-clés, en français>"], '
     '"authors": ["<le ou les auteurs si identifiables, sinon une liste vide>"], '
     '"tone": "<opinion|tutorial|research|news, ou null si indéterminable>", '
@@ -99,7 +98,7 @@ class ClaudeFicheGenerateRunner:
 
     def invoke(self, source: ContextSource) -> FicheInvocation:
         source_path = _write_source(source)
-        prompt = _PROMPT_TEMPLATE.format(path=source_path)
+        prompt = _PROMPT_TEMPLATE.format(path=source_path, themes=", ".join(config.THEME_PRIORITY))
         try:
             result = subprocess.run(
                 [

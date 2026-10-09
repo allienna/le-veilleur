@@ -18,6 +18,9 @@ class ContextSource(BaseModel):
     url: str
     title: str
     markdown: str
+    # The keyword classifier's guess (generate/classify.py), shown to /generate so it sees the
+    # day's mix. Empty outside `assemble` — fiches and tests build sources without one.
+    theme_hint: str = ""
 
 
 class AssembledContext(BaseModel):

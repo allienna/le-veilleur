@@ -40,11 +40,11 @@ LINKEDIN_PATH = f"linkedin/{DATE}.md"
 
 def _artifact(**overrides: Any) -> str:
     payload: dict[str, Any] = {
-        "theme": "IA",
+        "theme": "Data",
         "frontmatter": {
             "title": "Daily AI Watch",
             "date": "2026-06-01",
-            "themes": ["IA"],
+            "themes": ["Data", "IA"],
         },
         "body": "a clean synthesis body",
         "linkedin": "a post",

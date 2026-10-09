@@ -12,7 +12,7 @@ def _article(**overrides: Any) -> GeneratedArticle:
     fm_fields: dict[str, Any] = {
         "title": "A Title",
         "date": "2026-06-02",
-        "themes": ["IA"],
+        "themes": ["Data"],
     }
     fm_fields.update(overrides.pop("frontmatter", {}))
     fm = ArticleFrontmatter(**fm_fields)
@@ -70,3 +70,30 @@ def test_unclosed_inline_reference_flagged() -> None:
 def test_well_formed_inline_references_are_not_flagged() -> None:
     body = "Un fait [[1](https://a.example/x)]. Un autre [[2](https://b.example/y)]."
     assert "malformed_reference" not in _codes(_article(body=body))
+
+
+def test_weekly_framing_is_rejected_in_body_and_linkedin() -> None:
+    errors = validate_structure(
+        _article(body="Cette semaine, Postgres 19 sort.", linkedin="What a week")
+    )
+    assert [e.code for e in errors] == ["weekly_framing"]
+    errors = validate_structure(_article(linkedin="This week in data"))
+    assert [e.code for e in errors] == ["weekly_framing"]
+
+
+def test_other_mentions_of_semaine_are_fine() -> None:
+    assert validate_structure(_article(body="La semaine de quatre jours progresse.")) == []
+
+
+def test_ia_as_dominant_theme_is_rejected() -> None:
+    errors = validate_structure(_article(theme="IA", frontmatter={"themes": ["Data", "IA"]}))
+    assert [e.code for e in errors] == ["ai_dominant_theme"]
+
+
+def test_ia_leading_frontmatter_themes_is_rejected() -> None:
+    errors = validate_structure(_article(theme="Data", frontmatter={"themes": ["IA", "Data"]}))
+    assert [e.code for e in errors] == ["ai_dominant_theme"]
+
+
+def test_ia_as_a_secondary_theme_is_fine() -> None:
+    assert validate_structure(_article(theme="Data", frontmatter={"themes": ["Data", "IA"]})) == []

@@ -172,6 +172,15 @@ class GenerateStep:
                 article = article.model_copy(update={"theme": config.DEFAULT_THEME})
 
             report = validate_article(article, context.sources)
+            last_attempt = attempt == config.MAX_GENERATE_RETRIES
+            soft_only = all(e.code in config.SOFT_VALIDATION_CODES for e in report.errors)
+            if not report.ok and last_attempt and soft_only:
+                # An editorial preference is worth a retry, not the day's article.
+                ctx.log.warning(
+                    "article accepted despite soft validation errors",
+                    extra={"attempt": attempt, "errors": [e.code for e in report.errors]},
+                )
+                report = ValidationReport(errors=[])
             if report.ok:
                 ctx.log.info(
                     "article generated", extra={"attempt": attempt, "theme": article.theme}

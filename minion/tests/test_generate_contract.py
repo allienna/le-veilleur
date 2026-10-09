@@ -53,6 +53,21 @@ def test_spec_lists_exactly_the_configured_themes() -> None:
         assert f"`{theme}`" in spec, f"theme {theme!r} missing from the spec's allowlist"
 
 
+def test_spec_states_the_editorial_line() -> None:
+    """`validate_structure` rejects an IA-led article; a spec that doesn't say so sends the model
+    into a retry it cannot anticipate."""
+    spec = _spec_text()
+    assert "Ligne éditoriale" in spec
+    assert f"`theme` must never be `{config.NON_DOMINANT_THEME}`" in spec
+    assert "theme_hint" in spec
+    assert "« cette semaine »" in spec
+
+
+def test_contract_example_obeys_the_editorial_line() -> None:
+    article = GeneratedArticle.model_validate(_contract_example())
+    assert config.NON_DOMINANT_THEME not in (article.theme, article.frontmatter.themes[0])
+
+
 def test_spec_states_the_real_caps() -> None:
     """A cap stated wrongly in the prompt sends the model into a retry loop it cannot exit."""
     spec = _spec_text()

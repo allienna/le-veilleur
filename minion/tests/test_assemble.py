@@ -102,3 +102,40 @@ def test_dedupes_by_title_keeping_first_seen() -> None:
         "https://tracking.example.com/edition-a/real-post",
         "https://s.io/0",
     ]
+
+
+def _themed(i: int, title: str) -> ScrapedSource:
+    return ScrapedSource(
+        url=f"https://t.io/{i}", outcome=SourceOutcome.ok, title=title, markdown="body"
+    )
+
+
+def test_sources_carry_a_theme_hint() -> None:
+    source_set = SourceSet(sources=[_themed(0, "A new LLM agent"), _themed(1, "dbt and Iceberg")])
+    context = assemble_context(source_set, log=LOG)
+    assert [s.theme_hint for s in context.sources] == ["IA", "Data"]
+
+
+def test_ia_sources_capped_to_a_share_of_the_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "MIN_AI_SOURCES_KEPT", 0)
+    ai = [_themed(i, f"LLM agent news {i}") for i in range(20)]
+    data = [_themed(100 + i, f"Lakehouse pipeline {i}") for i in range(7)]
+    context = assemble_context(SourceSet(sources=ai + data), log=LOG)
+    hints = [s.theme_hint for s in context.sources]
+    assert hints.count("Data") == 7
+    assert hints.count("IA") == 3  # floor(7 * 0.3 / 0.7)
+
+
+def test_ia_cap_drops_the_lowest_weight_ia_sources_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "MIN_AI_SOURCES_KEPT", 1)
+    ai = [_themed(i, f"LLM agent news {i}") for i in range(3)]
+    context = assemble_context(SourceSet(sources=ai), weights={"https://t.io/2": 5.0}, log=LOG)
+    assert [s.url for s in context.sources] == ["https://t.io/2"]
+
+
+def test_ia_floor_keeps_an_all_genai_day_writable() -> None:
+    ai = [_themed(i, f"LLM agent news {i}") for i in range(12)]
+    context = assemble_context(SourceSet(sources=ai), log=LOG)
+    assert len(context.sources) == config.MIN_AI_SOURCES_KEPT

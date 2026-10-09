@@ -22,8 +22,8 @@ def _ctx() -> StepContext:
     return StepContext(run_id="RUN", date="2026-06-01", clock=FrozenClock(T0), log=bind("RUN"))
 
 
-def _newsletter(sender: str, urls: list[str]) -> Newsletter:
-    return Newsletter(sender=sender, subject="s", received_at=T0, candidate_urls=urls)
+def _newsletter(sender: str, urls: list[str], subject: str = "s") -> Newsletter:
+    return Newsletter(sender=sender, subject=subject, received_at=T0, candidate_urls=urls)
 
 
 def test_collects_and_dedupes_urls_across_newsletters() -> None:
@@ -91,6 +91,53 @@ def test_source_weights_by_exact_address_and_domain(monkeypatch: pytest.MonkeyPa
         "https://tldr.tech/1": 0.3,
         "https://news.com/1": 0.05,
         "https://good.com/1": 1.0,
+    }
+
+
+def test_url_cap_shares_the_pool_across_newsletters(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A prolific sender arriving first no longer fills the whole pool (2026-10-09)."""
+    monkeypatch.setattr(config, "MAX_URLS", 10)
+    monkeypatch.setattr(config, "NEWSLETTER_WEIGHTS", {})
+    client = FakeGmailClient(
+        newsletters=[
+            _newsletter("ed@tldr.tech", [f"https://tldr.tech/{i}" for i in range(80)]),
+            _newsletter("ed@data.io", [f"https://data.io/{i}" for i in range(5)]),
+        ]
+    )
+    urls: list[str] = GmailStep(client=client).run(_ctx()).payload["candidate_urls"]  # type: ignore[assignment]
+    assert sum(u.startswith("https://data.io/") for u in urls) == 5
+    assert len(urls) == 10
+
+
+def test_url_cap_splits_the_pool_by_weight(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "MAX_URLS", 10)
+    monkeypatch.setattr(config, "NEWSLETTER_WEIGHTS", {"@heavy.io": 4.0, "@light.io": 1.0})
+    client = FakeGmailClient(
+        newsletters=[
+            _newsletter("a@light.io", [f"https://light.io/{i}" for i in range(20)]),
+            _newsletter("b@heavy.io", [f"https://heavy.io/{i}" for i in range(20)]),
+        ]
+    )
+    urls: list[str] = GmailStep(client=client).run(_ctx()).payload["candidate_urls"]  # type: ignore[assignment]
+    assert sum(u.startswith("https://heavy.io/") for u in urls) == 8
+    assert sum(u.startswith("https://light.io/") for u in urls) == 2
+
+
+def test_subject_prefix_weight_overrides_sender_weight(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "NEWSLETTER_WEIGHTS", {"@tldr.tech": 0.8})
+    monkeypatch.setattr(config, "NEWSLETTER_SUBJECT_WEIGHTS", {"TLDR": 0.5, "TLDR AI": 0.2})
+    client = FakeGmailClient(
+        newsletters=[
+            _newsletter("ed@tldr.tech", ["https://a.io/1"], subject="tldr ai 2026-06-01"),
+            _newsletter("ed@tldr.tech", ["https://d.io/1"], subject="TLDR Data 2026-06-01"),
+            _newsletter("ed@tldr.tech", ["https://x.io/1"], subject="Weekly digest"),
+        ]
+    )
+    result = GmailStep(client=client).run(_ctx())
+    assert result.payload["source_weights"] == {
+        "https://a.io/1": 0.2,  # longest prefix wins, case-insensitive
+        "https://d.io/1": 0.5,
+        "https://x.io/1": 0.8,  # no subject match: falls back to the sender
     }
 
 

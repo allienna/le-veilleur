@@ -19,7 +19,7 @@ from typing import cast
 from urllib.parse import urlparse
 
 from minion import config
-from minion.ingest.models import SourceOutcome, SourceSet
+from minion.ingest.models import Newsletter, SourceOutcome, SourceSet
 from minion.ingest.ports import GmailClient, ScraperClient
 from minion.models import RunStatus, StepName
 from minion.steps.base import StepContext, StepResult
@@ -50,9 +50,22 @@ def _is_denied(sender: str, denylist: frozenset[str]) -> bool:
     return False
 
 
-def _weight_for(sender: str, weights: dict[str, float]) -> float:
-    """Configured weight for `sender` (exact address, then `@domain` suffix), default 1.0."""
-    address = _sender_address(sender)
+def _weight_for(
+    newsletter: Newsletter,
+    weights: dict[str, float],
+    subject_weights: dict[str, float],
+) -> float:
+    """Configured weight for one newsletter, default 1.0.
+
+    The longest matching subject prefix wins first (case-insensitive) — that is the only way to
+    tell apart editions sharing one sender, e.g. TLDR AI vs TLDR Data. Then the sender: exact
+    address, then `@domain` suffix.
+    """
+    subject = newsletter.subject.strip().lower()
+    prefixes = [p for p in subject_weights if subject.startswith(p.lower())]
+    if prefixes:
+        return subject_weights[max(prefixes, key=len)]
+    address = _sender_address(newsletter.sender)
     if not address:
         return 1.0
     if address in weights:
@@ -61,6 +74,45 @@ def _weight_for(sender: str, weights: dict[str, float]) -> float:
         if key.startswith("@") and address.endswith(key.lower()):
             return weight
     return 1.0
+
+
+def _interleave(
+    queues: list[tuple[float, list[str]]], cap: int
+) -> tuple[list[str], dict[str, float], list[int]]:
+    """Weighted round-robin over per-newsletter URL queues, deduped, stopped at `cap`.
+
+    Smooth weighted round-robin (the nginx scheme): every turn each non-empty queue gains its
+    weight in credit, the richest queue (first on ties, i.e. fetch order) yields its next unseen
+    URL and pays back the turn's total. Over any window each newsletter's share of picks tracks
+    its share of the weight, so the cap trims every sender proportionally instead of keeping
+    whoever arrived first. Returns the URLs, each URL's weight, and how many each queue gave.
+    """
+    pending = [list(urls) for _, urls in queues]
+    credit = [0.0] * len(queues)
+    taken = [0] * len(queues)
+    seen: set[str] = set()
+    urls: list[str] = []
+    weights: dict[str, float] = {}
+
+    while len(urls) < cap:
+        # Drop already-seen heads so an exhausted queue stops competing for turns.
+        for queue in pending:
+            while queue and queue[0] in seen:
+                queue.pop(0)
+        active = [i for i, queue in enumerate(pending) if queue]
+        if not active:
+            break
+        for i in active:
+            credit[i] += queues[i][0]
+        pick = max(active, key=lambda i: credit[i])  # max() keeps the first on ties
+        credit[pick] -= sum(queues[i][0] for i in active)
+        url = pending[pick].pop(0)
+        seen.add(url)
+        urls.append(url)
+        weights[url] = queues[pick][0]
+        taken[pick] += 1
+
+    return urls, weights, taken
 
 
 @dataclass
@@ -74,26 +126,36 @@ class GmailStep:
         newsletters = self.client.fetch_unread(ctx.date)
         kept = [n for n in newsletters if not _is_denied(n.sender, config.EXCLUDED_SENDERS)]
 
-        seen: set[str] = set()
-        urls: list[str] = []
-        source_weights: dict[str, float] = {}
-        for newsletter in kept:
-            weight = _weight_for(newsletter.sender, config.NEWSLETTER_WEIGHTS)
-            for url in newsletter.candidate_urls:
-                if url not in seen:
-                    seen.add(url)
-                    urls.append(url)
-                    source_weights[url] = weight
-
-        total = len(urls)
+        queues = [
+            (
+                _weight_for(n, config.NEWSLETTER_WEIGHTS, config.NEWSLETTER_SUBJECT_WEIGHTS),
+                n.candidate_urls,
+            )
+            for n in kept
+        ]
+        total = len({url for _, urls in queues for url in urls})
+        urls, source_weights, taken = _interleave(queues, config.MAX_URLS)
         if total > config.MAX_URLS:
             ctx.log.info("url cap reached", extra={"total": total, "capped_to": config.MAX_URLS})
-            urls = urls[: config.MAX_URLS]
-            source_weights = {url: source_weights[url] for url in urls}
 
         ctx.log.info(
             "gmail fetched",
-            extra={"fetched": len(newsletters), "kept": len(kept), "urls": len(urls)},
+            extra={
+                "fetched": len(newsletters),
+                "kept": len(kept),
+                "urls": len(urls),
+                # What each newsletter contributed after the cap — the input to tune weights.
+                "per_sender": [
+                    {
+                        "sender": _sender_address(n.sender),
+                        "subject": n.subject[:80],
+                        "weight": weight,
+                        "candidates": len(n.candidate_urls),
+                        "kept": count,
+                    }
+                    for n, (weight, _), count in zip(kept, queues, taken, strict=True)
+                ],
+            },
         )
         payload: dict[str, object] = {
             "newsletters": kept,

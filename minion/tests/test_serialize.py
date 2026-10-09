@@ -85,9 +85,13 @@ def test_count_sources_is_zero_without_a_sources_section() -> None:
     assert count_sources("# Titre\n\nJuste du texte.\n") == 0
 
 
-def test_normalize_themes_orders_by_site_frequency_and_caps() -> None:
-    themes = normalize_themes(["Data", "Tech", "IA", "Leadership"])
-    assert themes == ["IA", "Leadership", "Tech"]  # capped at MAX_THEMES, priority order
+def test_normalize_themes_orders_by_editorial_priority_and_caps() -> None:
+    themes = normalize_themes(["IA", "Tech", "Data", "Leadership"])
+    assert themes == ["Data", "Leadership", "Tech"]  # capped at MAX_THEMES, IA ranks last
+
+
+def test_normalize_themes_keeps_software() -> None:
+    assert normalize_themes(["IA", "Software"]) == ["Software", "IA"]
 
 
 def test_normalize_themes_drops_unknown_labels() -> None:

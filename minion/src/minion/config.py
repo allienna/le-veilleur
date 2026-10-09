@@ -46,8 +46,31 @@ EXCLUDED_SENDERS: frozenset[str] = frozenset()
 # TLDR's several daily editions otherwise dominating the source list by sheer link volume).
 # Matches the same way as EXCLUDED_SENDERS (full address or "@domain" suffix, case-insensitive).
 # An unlisted sender defaults to 1.0. Values are relative, not normalized/percentages.
+#
+# Weights also set each newsletter's share of the MAX_URLS pool: candidate URLs are interleaved
+# across newsletters by weighted round-robin *before* the cap, so one prolific sender can no
+# longer fill the whole pool by arriving first (2026-10-09: ~60% of cited sources over the
+# previous 30 days came through TLDR, despite its 0.4 weight, because the cap ran in fetch order
+# and the weighted sort only kicked in past the 500k-token budget, i.e. almost never).
+#
+# Editorial line (2026-10-09): Data, Software and Leadership first; GenAI is an angle, not the
+# subject. Values below are starting points — tune them from the `per_sender` field of the
+# "gmail fetched" log line.
 NEWSLETTER_WEIGHTS: dict[str, float] = {
-    "@tldrnewsletter.com": 0.4,
+    "@tldrnewsletter.com": 0.8,
+    "@dataelixir.com": 1.3,
+    "@leadershipintech.com": 1.3,
+    "@programmingdigest.net": 1.3,
+    "@aiwithremy.com": 0.3,
+}
+
+# Per-edition weight, matched case-insensitively as a prefix of the newsletter's subject and
+# taking precedence over NEWSLETTER_WEIGHTS — TLDR's editions share one sender domain, so only
+# the subject tells TLDR AI from TLDR Data. Longest matching prefix wins.
+NEWSLETTER_SUBJECT_WEIGHTS: dict[str, float] = {
+    "TLDR AI": 0.2,
+    "TLDR Data": 1.2,
+    "TLDR Dev": 0.8,
 }
 
 # Per-run hard caps. Truncation is logged, never silent.
@@ -142,12 +165,213 @@ MAX_IMAGE_PROMPT_CHARS: int = 1000
 # `sources` is derived from the body, not asked of the model, so it is not required here.
 REQUIRED_FRONTMATTER_FIELDS: tuple[str, ...] = ("title", "date", "themes")
 
-# The theme vocabulary actually in use on the site, French and capitalized. Ordered most- to
-# least-frequent; `THEME_PRIORITY` breaks ties when capping an article at MAX_THEMES.
-THEME_PRIORITY: tuple[str, ...] = ("IA", "Leadership", "Tech", "Sécurité", "Data", "Géopolitique")
+# The theme vocabulary actually in use on the site, French and capitalized (`Software` is the one
+# English label: the word French engineers actually use). `THEME_PRIORITY` breaks ties when
+# capping an article at MAX_THEMES.
+# Not frequency-ordered any more (2026-10-09): ordered by editorial priority, so a capped article
+# keeps Data/Software/Leadership over IA — GenAI is an angle, never the lead theme.
+THEME_PRIORITY: tuple[str, ...] = (
+    "Data",
+    "Software",
+    "Leadership",
+    "Tech",
+    "Sécurité",
+    "Géopolitique",
+    "IA",
+)
 THEME_ALLOWLIST: frozenset[str] = frozenset(THEME_PRIORITY)
 DEFAULT_THEME: str = "Tech"  # unknown theme normalizes here — not an error
 MAX_THEMES: int = 3  # ArticleCard renders at most three pills
+
+# The theme an article may not lead with: GenAI is an angle, never the subject (2026-10-09).
+# Enforced by `validate_structure` as a *soft* error — it buys a retry with feedback, but never
+# fails the run on its own (see SOFT_VALIDATION_CODES).
+NON_DOMINANT_THEME: str = "IA"
+
+# Validation codes that trigger the retry loop but are tolerated on the last attempt: an
+# editorial preference is not worth losing the day's article over.
+SOFT_VALIDATION_CODES: frozenset[str] = frozenset({"ai_dominant_theme", "weekly_framing"})
+
+# Le Veilleur is a daily, but many of its sources are weekly digests ("this week in…") and the
+# model inherited their framing: 42 of the first 122 articles said "cette semaine" (2026-10-09).
+# Matched case-insensitively on the body and the LinkedIn post; a soft error.
+WEEKLY_FRAMING_RE: str = r"\bcette semaine\b|\bthis week\b"
+
+# --- Assemble: theme mix ------------------------------------------------------------------
+# A deterministic keyword classifier (generate/classify.py) tags each OK source with a
+# `theme_hint`; `assemble_context` then caps IA-tagged sources at this fraction of the context so
+# a GenAI-heavy inbox cannot hand /generate a GenAI-only reading list. Excess IA sources are the
+# lowest-weight ones, dropped first.
+MAX_AI_SOURCE_FRACTION: float = 0.3
+# Floor on IA sources kept regardless of the fraction, so an all-GenAI day still has enough
+# material to clear validate_input's own minimum.
+MIN_AI_SOURCES_KEPT: int = 5
+# Only the head of each source is classified — title plus lede carry the subject.
+CLASSIFY_HEAD_CHARS: int = 2000
+# GenAI vocabulary is everywhere — a leadership or security piece mentions "AI" in passing — so
+# a source is hinted IA only when its IA score is at least this many times the best other
+# theme's. Tuned 2026-10-09 against the 573 existing fiches: at 1.0, 126 sources their fiche
+# labelled non-IA were hinted IA (and so exposed to the IA cap); at 3.0, 66. Erring this way is
+# cheap — a missed GenAI source merely slips into the context.
+IA_DOMINANCE_RATIO: float = 3.0
+
+# Lowercase keywords per theme, matched on word boundaries (a trailing `*` matches a prefix).
+# The highest score wins; ties fall back to THEME_PRIORITY order; no hit at all is `Tech`.
+# Title hits count triple: a title is the strongest one-line statement of the subject.
+THEME_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "IA": (
+        "ai",
+        "ia",
+        "llm*",
+        "gpt*",
+        "chatgpt",
+        "claude",
+        "gemini",
+        "openai",
+        "anthropic",
+        "genai",
+        "generative",
+        "générative",
+        "agent",
+        "agents",
+        "agentic",
+        "prompt*",
+        "mcp",
+        "rag",
+        "copilot",
+        "fine-tun*",
+        "inference",
+        "transformer*",
+        "mistral",
+        "intelligence artificielle",
+        "machine learning",
+        "deep learning",
+    ),
+    "Data": (
+        "data",
+        "données",
+        "pipeline*",
+        "warehouse",
+        "lakehouse",
+        "datalake",
+        "dbt",
+        "spark",
+        "iceberg",
+        "parquet",
+        "duckdb",
+        "snowflake",
+        "databricks",
+        "bigquery",
+        "postgres*",
+        "sql",
+        "etl",
+        "elt",
+        "analytics",
+        "kafka",
+        "flink",
+        "airflow",
+        "olap",
+        "datafusion",
+        "data engineering",
+        "data mesh",
+        "dataset*",
+    ),
+    "Software": (
+        "architecture",
+        "refactor*",
+        "testing",
+        "tests",
+        "tdd",
+        "ddd",
+        "backend",
+        "frontend",
+        "microservice*",
+        "monolith*",
+        "distributed",
+        "api",
+        "apis",
+        "typescript",
+        "rust",
+        "java",
+        "kotlin",
+        "python",
+        "golang",
+        "compiler*",
+        "database",
+        "latency",
+        "performance",
+        "kubernetes",
+        "observability",
+        "backpressure",
+        "queue*",
+        "craft",
+        "code review",
+        "technical debt",
+        "dette technique",
+    ),
+    "Leadership": (
+        "leadership",
+        "manager*",
+        "management",
+        "team",
+        "teams",
+        "équipe*",
+        "hiring",
+        "recrutement",
+        "career",
+        "carrière",
+        "culture",
+        "engineering manager",
+        "cto",
+        "vp",
+        "staff engineer",
+        "organisation",
+        "organization",
+        "feedback",
+        "1:1",
+        "burnout",
+        "productivity",
+        "productivité",
+        "strategy",
+        "stratégie",
+    ),
+    "Sécurité": (
+        "security",
+        "sécurité",
+        "vulnerabilit*",
+        "vulnérabilit*",
+        "cve",
+        "exploit*",
+        "malware",
+        "ransomware",
+        "phishing",
+        "breach",
+        "attack*",
+        "attaque*",
+        "zero-day",
+        "supply chain",
+        "authentication",
+        "oauth",
+    ),
+    "Géopolitique": (
+        "sovereignty",
+        "souveraineté",
+        "regulation",
+        "régulation",
+        "ai act",
+        "europe",
+        "china",
+        "chine",
+        "tariff*",
+        "export control*",
+        "chips",
+        "semiconductor*",
+        "geopolitic*",
+        "géopoliti*",
+        "government",
+        "gouvernement",
+    ),
+}
 
 # Copyright post-validator. These thresholds were recalibrated against real 47-source days:
 # the original, stricter values fired on non-infringing content — a product name ("Large

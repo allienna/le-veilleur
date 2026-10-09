@@ -1,8 +1,9 @@
 """Pure, deterministic validators for the generated artefact.
 
 No I/O — easy to unit-test and to tune during burn-in. `validate_structure` covers the
-the length caps and frontmatter completeness; `validate_copyright` enforces the copyright rules
-against the original source texts; `validate_article` combines them into a `ValidationReport`.
+length caps, frontmatter completeness and the editorial theme rule; `validate_copyright`
+enforces the copyright rules against the original source texts; `validate_article` combines
+them into a `ValidationReport`.
 Token budgets use a char heuristic, a guard rather than an exact bound.
 """
 
@@ -73,6 +74,35 @@ def validate_structure(article: GeneratedArticle) -> list[ValidationError]:
                     message=f"required frontmatter field '{field}' is missing or empty",
                 )
             )
+
+    lead = article.frontmatter.themes[0] if article.frontmatter.themes else None
+    if config.NON_DOMINANT_THEME in (article.theme, lead):
+        errors.append(
+            ValidationError(
+                code="ai_dominant_theme",
+                message=(
+                    f"'{config.NON_DOMINANT_THEME}' must not be the dominant theme: GenAI is an "
+                    "angle, not the subject — reframe the article around its Data, Software or "
+                    f"Leadership dimension; '{config.NON_DOMINANT_THEME}' may only come 2nd or 3rd"
+                    " in frontmatter.themes"
+                ),
+            )
+        )
+
+    weekly = re.findall(
+        config.WEEKLY_FRAMING_RE, f"{article.body}\n{article.linkedin}", re.IGNORECASE
+    )
+    if weekly:
+        errors.append(
+            ValidationError(
+                code="weekly_framing",
+                message=(
+                    f"weekly framing ({len(weekly)}x {weekly[0]!r}) in a daily article — say "
+                    "« aujourd'hui », « ces derniers jours », or state the fact without a "
+                    "time frame"
+                ),
+            )
+        )
 
     if len(article.linkedin) > config.MAX_LINKEDIN_CHARS:
         errors.append(

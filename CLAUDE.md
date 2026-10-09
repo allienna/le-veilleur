@@ -51,9 +51,10 @@ shapes — if the two drift, `astro build` fails, which is the gate. Fiche front
 **English** (`url`, `authors`, `keywords`, `theme`, `tone`, `used_in`); French keys break the schema.
 
 **Themes are a closed French vocabulary**, defined once in `config.THEME_PRIORITY`:
-`IA`, `Leadership`, `Tech`, `Sécurité`, `Data`, `Géopolitique`. Articles carry up to three in
-`themes`; fiches carry a single `theme` with `Autre` as the schema default — two different fields,
-do not conflate them.
+`Data`, `Software`, `Leadership`, `Tech`, `Sécurité`, `Géopolitique`, `IA` (editorial priority
+order; IA may not lead an article — a *soft* `validate_structure` error, retried but tolerated on
+the last attempt). Articles carry up to three in `themes`; fiches carry a single `theme` with
+`Autre` as the schema default — two different fields, do not conflate them.
 
 **`sources` is derived, never declared.** `serialize.count_sources` counts the numbered entries
 under the body's `## Sources` heading. The model is not asked for the number, so it cannot drift

@@ -39,7 +39,7 @@ URLS = [f"https://x.com/{i}" for i in range(6)]  # ≥5 → passes validate_inpu
 def _artifact(**overrides: Any) -> str:
     payload: dict[str, Any] = {
         "theme": "ai",
-        "frontmatter": {"title": "T", "date": "2026-06-02", "themes": ["IA"]},
+        "frontmatter": {"title": "T", "date": "2026-06-02", "themes": ["Data"]},
         "body": "a clean synthesis body",
         "linkedin": "a post",
         "image_prompt": "a prompt",

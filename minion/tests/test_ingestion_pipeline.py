@@ -36,7 +36,7 @@ T0 = datetime(2026, 6, 1, 6, 0, tzinfo=PARIS_TZ)
 _VALID_ARTIFACT = json.dumps(
     {
         "theme": "ai",
-        "frontmatter": {"title": "T", "date": "2026-06-02", "themes": ["IA"]},
+        "frontmatter": {"title": "T", "date": "2026-06-02", "themes": ["Data"]},
         "body": "a clean synthesis body",
         "linkedin": "a post",
         "image_prompt": "a prompt",

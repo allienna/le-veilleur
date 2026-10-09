@@ -39,7 +39,7 @@ def _ctx(data: dict[str, Any]) -> StepContext:
 def _artifact(**overrides: Any) -> str:
     payload: dict[str, Any] = {
         "theme": "ai",
-        "frontmatter": {"title": "T", "date": "2026-06-02", "themes": ["IA"]},
+        "frontmatter": {"title": "T", "date": "2026-06-02", "themes": ["Data"]},
         "body": "a clean synthesis body",
         "linkedin": "a post",
         "image_prompt": "a prompt",
@@ -141,6 +141,35 @@ def test_exhausted_validation_retries_raises() -> None:
     with pytest.raises(GenerationFailedError, match="linkedin_too_long"):
         step.run(_ctx({"context": AssembledContext(sources=[])}))
     assert len(runner.calls) == 1 + config.MAX_GENERATE_RETRIES  # initial + validation retries
+
+
+def test_ia_led_article_is_retried_with_the_editorial_feedback() -> None:
+    ia_led = _artifact(frontmatter={"title": "T", "date": "2026-06-02", "themes": ["IA"]})
+    runner = FakeGenerateRunner(outputs=[ia_led, _artifact()])
+    _step(runner, sleep=lambda _s: None).run(_ctx({"context": AssembledContext(sources=[])}))
+    assert len(runner.calls) == 2
+    assert any("dominant theme" in msg for msg in runner.calls[1])
+
+
+def test_soft_error_alone_is_tolerated_on_the_last_attempt() -> None:
+    """An editorial preference must never cost the day's article."""
+    ia_led = _artifact(frontmatter={"title": "T", "date": "2026-06-02", "themes": ["IA"]})
+    runner = FakeGenerateRunner(outputs=[ia_led])  # always IA-led
+    result = _step(runner, sleep=lambda _s: None).run(
+        _ctx({"context": AssembledContext(sources=[])})
+    )
+    assert result.payload["article"] is not None
+    assert result.payload["report"] == ValidationReport(errors=[])
+    assert len(runner.calls) == 1 + config.MAX_GENERATE_RETRIES
+
+
+def test_soft_error_does_not_excuse_a_hard_one() -> None:
+    bad = _artifact(
+        frontmatter={"title": "T", "date": "2026-06-02", "themes": ["IA"]}, linkedin="x" * 3001
+    )
+    runner = FakeGenerateRunner(outputs=[bad])
+    with pytest.raises(GenerationFailedError, match="linkedin_too_long"):
+        _step(runner, sleep=lambda _s: None).run(_ctx({"context": AssembledContext(sources=[])}))
 
 
 # --- ValidateOutputStep ----------------------------------------------------------
