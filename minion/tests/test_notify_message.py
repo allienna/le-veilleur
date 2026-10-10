@@ -272,12 +272,12 @@ def test_sources_section_lists_cited_read_and_excluded_sources() -> None:
     )
     cited = body.index("Citées dans l&#x27;article (1)")
     read = body.index("Lues par Claude, non citées (1)")
-    excluded = body.index("Écartées avant Claude (3)")
+    excluded = body.index("Écartées avant Claude (2)")
     assert cited < body.index("Polars 2.0") < read < body.index(">Read<") < excluded
     assert "pola.rs · Data" in body  # tracked link shows the real target host
     assert "Dup</a>" in body and "doublon ou plafond IA" in body
     assert "pay.io</a>" in body and "payante" in body
-    assert "down.io</a>" in body and "échec du téléchargement" in body
+    assert "down.io" not in body  # failed scrapes are not worth picking from
 
 
 def test_no_sources_section_without_a_source_set() -> None:

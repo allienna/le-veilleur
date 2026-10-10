@@ -52,11 +52,12 @@ _CREAM = "#f8f7f5"  # site's `background-light`
 _TRACKED_TARGET = re.compile(r"/CL0/([^/]+)")
 
 # Why an ingested source never reached /generate, by scrape outcome. An OK source missing from
-# the context was cut by `assemble`: a duplicate title, the IA cap or the token budget.
+# the context was cut by `assemble`: a duplicate title, the IA cap or the token budget. Failed
+# scrapes are left out of the email on purpose: the list is for picking links worth reading, and
+# a link that didn't even download has no title to judge it by.
 _EXCLUDED_REASONS: dict[SourceOutcome, str] = {
     SourceOutcome.ok: "doublon ou plafond IA",
     SourceOutcome.paywalled: "payante",
-    SourceOutcome.failed: "échec du téléchargement",
 }
 
 
@@ -118,7 +119,7 @@ def _source_group_html(heading: str, items: list[str]) -> str:
 
 
 def _sources_section_html(data: Mapping[str, object], article: GeneratedArticle | None) -> str:
-    """Every source the run ingested: cited, read but not cited, and dropped before /generate."""
+    """The run's readable sources: cited, read but not cited, and dropped before /generate."""
     source_set = data.get("sources")
     context = data.get("context")
     if not isinstance(source_set, SourceSet):
@@ -129,7 +130,11 @@ def _sources_section_html(data: Mapping[str, object], article: GeneratedArticle 
     read_urls = {s.url for s in read}
 
     excluded = sorted(
-        (s for s in source_set.sources if s.url not in read_urls),
+        (
+            s
+            for s in source_set.sources
+            if s.url not in read_urls and s.outcome in _EXCLUDED_REASONS
+        ),
         key=lambda s: list(_EXCLUDED_REASONS).index(s.outcome),
     )
     groups = [
