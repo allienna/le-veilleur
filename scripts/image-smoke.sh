@@ -29,6 +29,9 @@ run "command -v claude >/dev/null && claude --version"
 echo ">> /generate command vendored"
 run "test -f \"\$HOME/.claude/commands/generate.md\" && head -1 \"\$HOME/.claude/commands/generate.md\""
 
+echo ">> ~/.claude writable by the image user (claude's Bash tool needs ~/.claude/session-env)"
+run "mkdir -p \"\$HOME/.claude/session-env\" && echo '~/.claude writable'"
+
 echo ">> minion CLI resolves"
 run "python -m minion --help >/dev/null && echo 'minion --help ok'"
 

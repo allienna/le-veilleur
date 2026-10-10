@@ -58,6 +58,13 @@ RUN useradd --create-home --uid 1000 minion
 USER minion
 WORKDIR /home/minion
 
+# claude writes its session state under ~/.claude (e.g. session-env, without which its Bash tool
+# fails on every call). Create the directory as `minion` *before* the COPY below: a COPY into a
+# missing parent creates that parent as root under the classic builder (`gcloud builds submit
+# --tag`) even with --chown, while BuildKit chowns it — so an image built the other way silently
+# broke /generate (2026-10-10: EACCES on mkdir ~/.claude/session-env, run failed unparseable).
+RUN mkdir -p /home/minion/.claude
+
 # Install the `/generate` slash command so `claude -p "/generate"` resolves for the `minion` user.
 # It is vendored at minion/.claude/commands/generate.md — the runtime literally executes this
 # versioned spec, so it ships with the image rather than being fetched at run time.
