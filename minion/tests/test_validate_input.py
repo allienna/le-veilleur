@@ -31,8 +31,10 @@ def _source_set(ok: int, not_ok: int, *, paywalled: int = 0) -> SourceSet:
     return SourceSet(sources=sources)
 
 
-def _ctx(sources: SourceSet | None) -> StepContext:
+def _ctx(sources: SourceSet | None, *, newsletters: int | None = None) -> StepContext:
     data: dict[str, object] = {} if sources is None else {"sources": sources}
+    if newsletters is not None:
+        data["newsletters"] = [object()] * newsletters
     return StepContext(
         run_id="RUN", date="2026-06-01", clock=FrozenClock(T0), log=bind("RUN"), data=data
     )
@@ -48,6 +50,18 @@ def test_missing_sources_key_triggers_skip() -> None:
     result = ValidateInputStep().run(_ctx(None))
     assert result.terminal_status is RunStatus.skipped
     assert result.reason == "no_sources"
+
+
+def test_single_newsletter_triggers_skip() -> None:
+    # 2026-10-11: one lifestyle digest, 40 scraped OK — plenty of sources, nothing to write about.
+    result = ValidateInputStep().run(_ctx(_source_set(ok=40, not_ok=40), newsletters=1))
+    assert result.terminal_status is RunStatus.skipped
+    assert result.reason == "thin_mailbox"
+
+
+def test_two_newsletters_pass_the_mailbox_gate() -> None:
+    result = ValidateInputStep().run(_ctx(_source_set(ok=5, not_ok=5), newsletters=2))
+    assert result.terminal_status is None
 
 
 def test_passes_at_threshold_boundary() -> None:

@@ -65,7 +65,10 @@ def _pipeline(
     return build_pipeline(
         gmail
         or FakeGmailClient(
-            [Newsletter(sender="a@x.com", subject="s", received_at=T0, candidate_urls=URLS)]
+            [
+                Newsletter(sender="a@x.com", subject="s", received_at=T0, candidate_urls=URLS),
+                Newsletter(sender="b@x.com", subject="s", received_at=T0, candidate_urls=[]),
+            ]
         ),
         FakeScraperClient(),
         FakeGenerateRunner(outputs=[generate_output or _artifact()]),
@@ -126,7 +129,10 @@ def test_full_fake_pipeline_fiches_cited_sources_and_survives_a_failure(
         content_repo,
         FakeImageGenerator(outcomes=[b"HEROIMG"]),
         gmail=FakeGmailClient(
-            [Newsletter(sender="a@x.com", subject="s", received_at=T0, candidate_urls=urls)]
+            [
+                Newsletter(sender="a@x.com", subject="s", received_at=T0, candidate_urls=urls),
+                Newsletter(sender="b@x.com", subject="s", received_at=T0, candidate_urls=[]),
+            ]
         ),
         generate_output=_artifact(body=article_body),
         fiche_runner=fiche_runner,

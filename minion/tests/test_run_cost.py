@@ -42,7 +42,10 @@ def _run(runner: FakeGenerateRunner, run_store, lock_store, clock, *, newsletter
     gmail = FakeGmailClient(
         newsletters
         if newsletters is not None
-        else [Newsletter(sender="a@x.com", subject="s", received_at=T0, candidate_urls=URLS)]
+        else [
+            Newsletter(sender="a@x.com", subject="s", received_at=T0, candidate_urls=URLS),
+            Newsletter(sender="b@x.com", subject="s", received_at=T0, candidate_urls=[]),
+        ]
     )
     steps = build_pipeline(
         gmail,

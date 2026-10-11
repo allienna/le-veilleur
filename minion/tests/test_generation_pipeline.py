@@ -57,7 +57,10 @@ def _run(
     jina: FakeScraperClient | None = None,
 ) -> Run:
     gmail = FakeGmailClient(
-        [Newsletter(sender="a@x.com", subject="s", received_at=T0, candidate_urls=URLS)]
+        [
+            Newsletter(sender="a@x.com", subject="s", received_at=T0, candidate_urls=URLS),
+            Newsletter(sender="b@x.com", subject="s", received_at=T0, candidate_urls=[]),
+        ]
     )
     steps = build_pipeline(
         gmail,

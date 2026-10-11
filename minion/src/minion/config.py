@@ -114,6 +114,12 @@ SCRAPE_HOST_MIN_INTERVAL: timedelta = timedelta(seconds=2)
 # Overall scrape budget — roughly 3 min in practice, and it must not eat the run's 20.
 SCRAPE_DEADLINE: timedelta = timedelta(minutes=4)
 
+# A mailbox with fewer newsletters than this is a thin day, not a failure: the run is skipped
+# before `generate`. 2026-10-11 (Sunday): the 24h window held a single lifestyle digest (Substack's
+# "Weekender"), 40 of its links scraped fine, and `generate` rightly refused to write a tech article
+# from fashion-week coverage — the run ended failed instead of skipped.
+MIN_NEWSLETTERS: int = 2
+
 # Input-validation threshold: continue only if ≥50% of candidates scraped OK AND
 # ≥5 sources OK; otherwise the run hard-fails.
 MIN_SOURCES_OK: int = 5

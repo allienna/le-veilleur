@@ -76,7 +76,7 @@ def _run(gmail: FakeGmailClient, jina: FakeScraperClient, run_store, lock_store,
 def test_happy_path_succeeds_through_all_ten_steps(run_store, lock_store, clock) -> None:
     urls = [f"https://x.com/{i}" for i in range(5)]
     final = _run(
-        FakeGmailClient([_newsletter("a@x.com", urls)]),
+        FakeGmailClient([_newsletter("a@x.com", urls), _newsletter("b@x.com", [])]),
         FakeScraperClient(),
         run_store,
         lock_store,
@@ -91,7 +91,11 @@ def test_degraded_but_above_threshold_passes(run_store, lock_store, clock) -> No
     urls = [f"https://x.com/{i}" for i in range(10)]
     jina = _jina_with_outcomes(failed=urls[6:])  # 6 ok of 10 → ≥5 and ≥50%
     final = _run(
-        FakeGmailClient([_newsletter("a@x.com", urls)]), jina, run_store, lock_store, clock
+        FakeGmailClient([_newsletter("a@x.com", urls), _newsletter("b@x.com", [])]),
+        jina,
+        run_store,
+        lock_store,
+        clock,
     )
     assert final.status is RunStatus.success
 
@@ -100,7 +104,11 @@ def test_below_threshold_fails_the_run(run_store, lock_store, clock) -> None:
     urls = [f"https://x.com/{i}" for i in range(12)]
     jina = _jina_with_outcomes(failed=urls[3:])  # 3 ok of 12
     final = _run(
-        FakeGmailClient([_newsletter("a@x.com", urls)]), jina, run_store, lock_store, clock
+        FakeGmailClient([_newsletter("a@x.com", urls), _newsletter("b@x.com", [])]),
+        jina,
+        run_store,
+        lock_store,
+        clock,
     )
     assert final.status is RunStatus.failure
     assert (
@@ -124,7 +132,11 @@ def test_paywalled_sources_excluded_from_ok_count(run_store, lock_store, clock) 
     urls = [f"https://x.com/{i}" for i in range(8)]
     jina = _jina_with_outcomes(paywalled=urls[4:])  # 4 ok + 4 paywalled
     final = _run(
-        FakeGmailClient([_newsletter("a@x.com", urls)]), jina, run_store, lock_store, clock
+        FakeGmailClient([_newsletter("a@x.com", urls), _newsletter("b@x.com", [])]),
+        jina,
+        run_store,
+        lock_store,
+        clock,
     )
     # Paywalled don't count as OK → 4/8 < the ≥5 floor → the run fails.
     assert final.status is RunStatus.failure

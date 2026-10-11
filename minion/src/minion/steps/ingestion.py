@@ -216,6 +216,15 @@ class ValidateInputStep:
             ctx.log.info("no sources; skipping run", extra={"reason": "no_sources"})
             return StepResult(terminal_status=RunStatus.skipped, reason="no_sources")
 
+        # Absent only when a test drives this step without `gmail`; then there is no count to gate.
+        newsletters = cast("list[Newsletter] | None", ctx.data.get("newsletters"))
+        if newsletters is not None and len(newsletters) < config.MIN_NEWSLETTERS:
+            ctx.log.info(
+                "too few newsletters; skipping run",
+                extra={"reason": "thin_mailbox", "newsletters": len(newsletters)},
+            )
+            return StepResult(terminal_status=RunStatus.skipped, reason="thin_mailbox")
+
         ok, total = sources.ok_count, sources.total
         fraction = ok / total
         meets_fraction_gate = (
