@@ -1,0 +1,101 @@
+---
+title: "No Room for Bugs"
+date: 2026-10-15
+url: "https://tracking.tldrnewsletter.com/CL0/https:%2F%2Fjhellerstein.github.io%2Fblog%2Fno-room-for-bugs%2F%3Futm_source=tldrit/1/010001a13a5aa09e-34e2f72b-f2ca-4fc4-b6b9-06b3141e4efd-000000/OZYcduKL0_ue4mfioKCnDxBPpy6Wk5Ai-SQEGWsIpP4=452"
+authors: ["Joseph M. Hellerstein"]
+keywords: ["vérification formelle", "sécurité mémoire", "model checking", "fuzzing", "systèmes distribués", "Hydro"]
+theme: "Software"
+tone: "opinion"
+used_in: ["2026-10-15"]
+---
+
+## Résumé
+L'auteur propose une métaphore pour cartographier le paysage souvent confus des outils de correction logicielle : le code est une "pièce pleine de bugs" dont le sol est l'assembleur et le plafond une preuve formelle complète. Deux grandes stratégies réduisent l'espace où les bugs peuvent se cacher — "correct par construction" (le langage interdit de compiler les violations de propriétés universelles comme la sécurité mémoire) et "correct par vérification" (on prouve des propriétés spécifiques à l'application via des solveurs SMT) — et tout ce qui reste est couvert par des tests "tamis" imparfaits (model checking, fuzzing, tests par propriétés). L'auteur, qui travaille sur le projet Hydro, souligne un piège répandu : de nombreux outils de vérification (TLA+, P, preuves faites à la main) vérifient une spécification séparée du code réellement déployé, qui finit par diverger de celui-ci avec le temps. Sa proposition centrale est qu'il faut faire porter le "tamis" directement sur le code de production lui-même plutôt que sur un modèle à part, ce que permet HydroSim, le vérificateur intégré à Hydro.
+
+## Points clés
+- Deux voies complémentaires réduisent la surface des bugs : élever le "plancher" via des garanties du langage (types, sécurité mémoire façon Rust, sécurité distribuée façon Hydro) et avancer le "mur" via la vérification formelle du code annoté (Verus, Dafny, Stainless).
+- Microsoft a rapporté qu'environ 70 % de ses CVE de sécurité relevaient de bugs de sécurité mémoire — un problème que Rust élimine structurellement.
+- Le reste de l'espace est couvert par des tests "tamis" imparfaits : model checking (exhaustif mais borné), fuzzing et tests par propriétés (aléatoire mais potentiellement guidé par la couverture) ; chacun laisse des trous différents.
+- Risque majeur identifié : les outils comme TLA+ ou les assistants de preuve (Lean, Coq) vérifient souvent une spécification séparée du code réel, qui dérive du système déployé au fil des évolutions — la preuve reste valide alors que le système qu'elle décrit n'existe plus.
+- Les testeurs par simulation qui agissent directement sur le code déployé (Shuttle, Turmoil, Antithesis, et HydroSim pour Hydro) évitent ce problème de dérive car il n'existe pas de modèle séparé à faire dériver.
+- Hydro combine les deux approches : il élève le plancher par son système de types (avec le mot-clé `nondet!` pour isoler explicitement le non-déterminisme) et fournit HydroSim, un vérificateur conçu pour s'appuyer exactement sur ce plancher, en testant le code de production lui-même plutôt qu'une spécification à part.
+
+## Analyse approfondie
+L'auteur part d'un constat personnel : malgré une connaissance generale des outils de vérification de code, il n'avait pas une vision claire de l'état de l'art, un sentiment qu'il pense partagé largement. Le champ souffre d'un déficit de clarté : le marketing commercial reste vague, tandis que la littérature open-source emploie un vocabulaire très académique ("méthodes formelles", "model checking", "property-based testing") difficile à relier à l'expérience concrète d'évaluation de code, qu'il soit écrit par un humain ou une IA.
+
+Il propose alors une image directrice : le logiciel est une pièce pleine de bugs, et l'objectif de tous ces outils est de réduire l'intérieur de cette pièce. Le sol de la pièce est le code assembleur produit par le compilateur ; le plafond est une preuve formelle, vérifiée mécaniquement, que le programme respecte sa spécification. Tout ce qui se trouve entre le sol et le plafond est un espace où les bugs peuvent vivre.
+
+Les bugs se répartissent en deux catégories. Les violations de **propriétés universelles** enfreignent des règles valables pour tout programme : sécurité des types, sécurité mémoire, absence de data races, etc. Les violations de **propriétés arbitraires** enfreignent des règles propres à un programme donné — par exemple "chaque électeur ne peut voter qu'une fois" ou "la physique du jeu doit respecter les lois de Newton". L'auteur note que le terme habituel de "logique métier" lui semble trop restrictif, le logiciel ne servant pas qu'à des fins commerciales.
+
+Deux stratégies complémentaires permettent de réduire la pièce :
+
+**Correct par construction** élève le plancher. Le langage refuse de compiler les programmes susceptibles de violer une propriété universelle, si bien que cette propriété est garantie pour tout programme accepté par le compilateur. Les systèmes de types classiques élèvent le plancher en interdisant d'appliquer du code à des catégories de données inappropriées. Rust élève le plancher contre les bugs mémoire. Hydro l'élève contre les "heisenbugs" des programmes distribués. Chaque propriété universelle de correction migrée vers le compilateur ajoute une couche supplémentaire au plancher, le poussant un peu plus haut.
+
+**Correct par vérification** avance un mur depuis le côté. Pour les propriétés arbitraires propres à un programme donné, on écrit des preuves. Verus et Stainless permettent d'annoter du code réel avec des spécifications et de "décharger les obligations" (c'est-à-dire prouver ce qui doit être prouvé) à l'aide d'un solveur SMT. Là où cela réussit, le sol rejoint le plafond pour la portion de code couverte — les bugs y sont totalement éradiqués. C'est le rêve magnifique et impossible d'une communauté de recherche qui y travaille depuis plus d'un demi-siècle : prouver qu'un programme arbitraire respecte sa spécification complète. L'impossibilité générale est un fait mathématique qui remonte à Turing, mais les progrès vers l'utile-dans-de-nombreux-cas ont été réels, et le mur est plus avancé qu'on pourrait le penser. Les LLM contribuent même à orienter ces outils formels pour repousser le mur un peu plus loin.
+
+Les deux approches ne sont pas totalement distinctes. La sécurité distribuée est une propriété universelle dans Hydro (correct par construction) mais une obligation de preuve sur mesure en Rust pur (correct par vérification). La frontière entre les deux s'est déplacée vers l'"universel" depuis des décennies : une propriété d'abord prouvée à la main sur des programmes spécifiques finit par être captée par un nouveau système de types, après quoi tout programme futur l'obtient gratuitement.
+
+Tout ce qui reste — l'espace non couvert au-dessus du plancher relevé et à l'intérieur du mur avancé — est traité par une forme de test disciplinée mais incomplète. Des techniques comme les model checkers et les fuzzers font passer un tamis à travers cet espace, capturant les bugs qui se logent dans les mailles. Le tamis devient toujours plus fin, mais reste fondamentalement percé.
+
+### Élever le plancher
+Le plancher n'a pas été simple assembleur depuis très longtemps ; on empile des couches depuis des décennies.
+
+La première couche sérieuse est celle des **types**. Un système de types refuse les programmes qui mélangent entiers et chaînes, déréférencent des pointeurs nuls introuvables par le compilateur, ou référencent des champs inexistants. Ces erreurs ne sont pas mineures — elles comptent historiquement parmi les erreurs les plus fréquentes. Une fois qu'un langage impose des types statiques, ces bugs deviennent impossibles à écrire.
+
+La deuxième est la **sécurité mémoire**. Le vérificateur d'emprunts (borrow checker) de Rust garantit, à la compilation, l'absence de pointeurs pendants, de double-libération, ou de data races au sens primitif du C/C++. Microsoft a rapporté en 2019 qu'environ 70 % de ses CVE de sécurité relevaient de la catégorie "sécurité mémoire" ; Rust retire entièrement cette catégorie de la table. Ce n'est pas gratuit : on passe du temps à négocier avec le borrow checker plutôt qu'à déboguer des segfaults — mais beaucoup acceptent volontiers cet échange, d'autant plus que les LLM font désormais une bonne partie de cette négociation à notre place.
+
+La troisième, celle à laquelle l'équipe de l'auteur consacre le plus de temps, est la **sécurité distribuée** — l'objectif de Hydro. Les programmes distribués dysfonctionnent parce qu'ils font des hypothèses silencieuses sur l'ordre des messages, la livraison, les retentatives, les pannes. Hydro refuse de compiler des programmes qui utilisent ces hypothèses sans les déclarer explicitement. Les collections portent dans leur type leurs garanties d'ordre et de retentative. Les rares endroits où le comportement du programme dépend réellement de l'environnement sont marqués par le mot-clé `nondet!` ; tout le reste est déterministe par construction. Hydro rend toute une catégorie de heisenbugs distribués inexprimable — par exemple les races induites par de fausses hypothèses sur les ordres d'exécution possibles — dans le même esprit que Rust a rendu inexprimable l'utilisation après libération.
+
+Chacune de ces couches est posée par le concepteur du langage. Elles garantissent que le programmeur ne verra jamais une certaine classe de bugs. Si le code compile, les bugs qui vivraient sous le plancher ne sont pas dans la pièce. Le budget du programmeur — et le budget de test — peut alors se concentrer sur ce qui reste.
+
+### Repousser le mur depuis le côté
+Les propriétés universelles ne couvrent pas tout ce qu'on souhaite prouver. La majorité de la correction logicielle est spécifique à l'application : une structure de données doit préserver un invariant, des services doivent suivre un protocole, un algorithme doit conserver une propriété numérique. Aucun langage ne peut intégrer cela dans son système de types sans devenir l'application elle-même.
+
+Pour cela, on avance un mur depuis le côté. Une première famille d'outils permet d'annoter le code réel avec des assertions sur son comportement attendu, et le vérificateur prouve mécaniquement que le code les satisfait — la compilation échoue si ce n'est pas le cas. Verus et Prusti font cela pour Rust ; Dafny est un projet de longue date dans cette famille ; Stainless le fait pour Scala. Quand cela réussit, la portion de code couverte est scellée : le sol rejoint directement le plafond, et aucun bug ne peut apparaître dans cette partie de la pièce.
+
+Une deuxième famille d'outils de vérification demande d'écrire une spécification *séparée* dans un langage dédié, et vérifie cette spécification selon ses propres termes, sans lien mécanique avec le code déployé. L'auteur y reviendra plus loin — c'est précisément dans cette absence de lien mécanique que se loge le problème.
+
+Le coût est celui, habituel, de la vérification véritable : rédiger les spécifications, décharger les obligations de preuve, attendre le solveur. Les murs ne peuvent avancer que jusqu'à un certain point (les solveurs modernes recourent parfois à des algorithmes exponentiels) ; le problème général est indécidable, comme le montre le théorème de Rice, et tous les programmes ne sont pas pratiquement vérifiables à l'état de l'art actuel. Mais la vérification fonctionne souvent, et chaque portion de code qui se retrouve "derrière le mur" est une portion que le tamis n'a plus besoin de couvrir, et que le budget de test n'a plus besoin de financer.
+
+### Tests sophistiqués : tamiser le milieu
+Pour tout ce qui reste dans la pièce, on y jette un tamis. Il en existe différents types : model checking, fuzzing, tests par propriétés. Tous choisissent un invariant, une stratégie de recherche dans "la pièce", et tentent de trouver une trace qui le viole. Tout ce qui est capturé par le tamis est un bug trouvé avant qu'il n'atteigne la production.
+
+Ces tamis se sont nettement affinés. TLA+ et P sont les model checkers de référence pour le travail sur les protocoles, bien qu'ils présentent des problèmes que l'auteur soulèvera. Jepsen soumet les bases de données distribuées à des pannes, puis vérifie si les historiques résultants respectent toujours des invariants de cohérence au niveau applicatif comme la linéarisabilité et l'isolation. Shuttle, Turmoil et HydroSim sont des testeurs par simulation qui s'accrochent directement à l'ordonnanceur, au réseau et à l'horloge du code réel, permettant de rejouer de manière déterministe des entrelacements malheureux. Antithesis généralise encore l'idée : il exécute le système entier comme une boîte noire dans un hyperviseur déterministe, offrant les mêmes garanties de replay sans nécessiter de crochets au niveau du langage. Chacun de ces outils resserre la maille dans sa portion de la pièce.
+
+Malgré leur nom à consonance formelle, les **model checkers** sont en réalité des machines de test par force brute qui cherchent exhaustivement des bugs dans une tranche finie de l'espace d'états du programme. On borne les paramètres — disons cinq nœuds, dix messages en vol, deux valeurs possibles par registre — et le vérificateur énumère chaque état atteignable dans cette limite pour voir s'il viole l'invariant. À l'intérieur de la limite, rien n'échappe. Les trous se trouvent à l'extérieur de la limite : le cas à six nœuds, le onzième message, la valeur non modélisée. L'explosion combinatoire des états force à garder des limites réduites, et plus les limites sont petites, plus les trous sont grands.
+
+Les **fuzzers et testeurs par propriétés** procèdent dans l'autre sens : générer des entrées ou des ordonnancements au hasard, exécuter le système, observer ce qui casse. Les fuzzers classiques surveillent les échecs évidents — plantages, blocages, violations d'assertions. Les testeurs par propriétés (QuickCheck, Hypothesis, proptest) permettent de déclarer un invariant qui doit tenir pour toute entrée générée, ce qui capture des bugs de "mauvaise réponse" qui ne plantent pas. Les fuzzers guidés par la couverture (comme AFL et ses descendants, dont HydroSim en mode fuzzing) vont plus loin : ils instrumentent le binaire pour voir quels chemins de code chaque entrée exerce, et privilégient la mutation des entrées qui atteignent de nouveaux chemins. Cela transforme le fuzzing d'un échantillonnage à l'aveugle en quelque chose de plus proche d'une recherche guidée. Les trous sont les chemins que le générateur ne rencontre jamais dans un budget de temps raisonnable : les branches profondes conditionnées par des entrées improbables, les conditions de course nécessitant un entrelacement très particulier, et les bugs que l'oracle ne reconnaît pas comme tels.
+
+La maille de ces tamis s'affine avec le temps, mais reste percée. Et comme l'écart entre le sol et le plafond est bien plus large que ce qu'une seule passe peut couvrir, des bugs se cachent entre les trous.
+
+L'auteur se dit grand amateur des tests par simulation et du fuzzing, mais exprime des réserves envers plusieurs des outils les plus populaires du domaine, y compris certains des plus célèbres comme TLA+.
+
+### Tamis et plafonds dans la mauvaise pièce
+Si votre programme est une pièce pleine de bugs sournois, il y a peu à gagner à les chercher dans une pièce voisine.
+
+L'auteur raconte qu'un ingénieur lui a récemment décrit une erreur "off-by-one" apparue dans du code Java complexe de récupération de base de données, en lui demandant s'il aurait fallu écrire une spécification du protocole de récupération en P pour détecter l'erreur. Sa réponse : absolument pas — les chances qu'une spécification P reproduise fidèlement chaque détail opérationnel de l'implémentation Java seraient quasi nulles.
+
+Dans des model checkers comme TLA+, P ou Alloy, le modèle est une spécification écrite dans un langage de spécification dédié, tandis que le système déployé est écrit dans un langage de programmation complet comme Go, Rust ou Java. Dans les assistants de preuve interactifs comme Lean, Rocq (anciennement Coq) ou Isabelle, on prouve un algorithme à la main ; ce qui part en production peut être un portage en C++ réalisé par quelqu'un ayant lu l'article de recherche. Dans les deux cas, la vérification porte sur une spécification idéalisée et soignée du système. Le système réel est un artefact différent, et rien dans l'outil ne garantit que les deux restent alignés.
+
+Avec le temps, l'écart s'aggrave car les implémentations dérivent. L'implémentation peut gagner un chemin de retentative absent du modèle ; plus tard, quelqu'un resserre un timeout pour respecter un SLA ou ajoute une fonctionnalité dont la spécification TLA+ n'a jamais entendu parler. Chacun de ces changements ouvre une couture entre la spécification et le code. Le model checker continue de signaler fidèlement l'absence de violation dans la spécification — ce qui est vrai. Le système que décrit la spécification a cessé d'exister six mois plus tôt.
+
+C'est un échec pratique, pas seulement une mise en garde théorique : une preuve peut rester valide alors même que le code de production s'éloigne du programme qu'elle décrit.
+
+(Ce problème de dérive est spécifique aux outils qui vérifient un modèle *séparé*. Les testeurs par simulation mentionnés plus haut — Shuttle, Turmoil, HydroSim et Antithesis — travaillent tous sur le système réellement déployé et n'ont pas ce problème.)
+
+### Tester la vraie pièce
+La solution consiste à faire en sorte que le code déployé soit précisément ce que traverse le tamis.
+
+C'est le pari de Hydro. Le programme est écrit en Rust, avec les extensions de Hydro. Le code exécuté en production est exactement celui qu'explore HydroSim, le model checker intégré de Hydro. Le tamis ne parcourt pas une traduction du code ; il parcourt le code lui-même.
+
+Les invariants sont les tests unitaires que l'on écrit déjà. HydroSim fait passer un test unitaire standard de la question "est-ce que cela passe pour un seul ordonnancement ?" à la question "est-ce que cela passe pour tout ordonnancement, tout ordre de livraison, toute perte de message que le système de types de Hydro a jugés légaux ?", jusqu'à une certaine limite de model checking. Comme le système de types a déjà élevé le plancher, tout chemin non marqué `nondet!` est déterministe par construction — il n'y a donc rien à y rechercher. Le tamis consacre tout son budget aux rares endroits où le programme doit réellement affronter du non-déterminisme.
+
+Si le code change, l'objet échantillonné change avec lui. Il n'y a pas de modèle qui dérive du système de production, puisqu'il n'existe pas de modèle séparé. Le tamis traverse la pièce que l'on expédie réellement.
+
+Cette approche convient particulièrement bien à la catégorie de bugs la plus difficile : les heisenbugs qui dépendent d'un hasard environnemental incontrôlé. La comparaison avec les simulateurs au niveau de l'exécution comme Shuttle, Turmoil et Antithesis mériterait, selon l'auteur, un article à part entière — annoncé comme le prochain de la série.
+
+### Où va la pièce
+Une solution complète à l'élimination des bugs devra probablement attendre un changement majeur dans les paradigmes de programmation courants, sujet d'un futur article. En attendant, trois mouvements complémentaires s'offrent à nous dans cette "pièce à bugs". La plupart des outils se rangent nettement dans l'une des trois catégories, d'où la nécessité de les combiner. Hydro illustre une intégration à travers plusieurs catégories : il élève le plancher avec de nouveaux types, et offre un tamis — HydroSim — conçu pour s'ajuster parfaitement à ce plancher. L'équipe de l'auteur envisage également des intégrations Hydro-Verus pour faire avancer le mur du côté droit également — à suivre.
+
+## Pourquoi ça compte
+Ce texte offre un cadre conceptuel clair pour situer les uns par rapport aux autres des outils de fiabilité logicielle souvent présentés de façon isolée (types, Rust, TLA+, fuzzing, Hydro), et met en garde contre un angle mort répandu : vérifier un modèle séparé du code réel peut donner une fausse confiance si l'implémentation dérive de la spécification — un point directement pertinent à l'heure où le code généré par IA accroît le volume de code à faire confiance sans l'avoir entièrement audité.
