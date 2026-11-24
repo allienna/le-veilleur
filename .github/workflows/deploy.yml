@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url || steps.deployment_last.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -65,6 +65,31 @@ jobs:
         with:
           path: site/dist
 
+      # deploy-pages looks the artifact up once, without retrying, and GitHub does not always list
+      # it yet right after the upload ("Found 0 artifact(s)", actions/deploy-pages#451). The
+      # artifact is fine, so retry the lookup rather than rebuild. Only the deploy is retried:
+      # uploading twice in one run would make the name ambiguous and fail for another reason.
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before the second attempt
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy to GitHub Pages (second attempt)
+        id: deployment_retry
+        if: steps.deployment.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before the last attempt
+        if: steps.deployment_retry.outcome == 'failure'
+        run: sleep 90
+
+      # No continue-on-error here: a real failure must still turn the run red.
+      - name: Deploy to GitHub Pages (last attempt)
+        id: deployment_last
+        if: steps.deployment_retry.outcome == 'failure'
         uses: actions/deploy-pages@v4
